@@ -1,6 +1,6 @@
 This repository provides code for the **Causal DRL** framework and experimental setup developed in the paper:
 
-> [From Causal Structure to Efficient Representations: Deep Reinforcement Learning with Causal Rank Regularization](LINK_HERE)  
+> From Causal Structure to Efficient Representations: Deep Reinforcement Learning with Causal Rank Regularization 
 > **Authors:** Sujai Hiremath, Dominik Janzing, Philipp Faller, Patrick Blöbaum, Elke Kirschbaum, Shiva Prasad Kasiviswanathan, and Kyra Gan  
 > **Year:** 2026
 
