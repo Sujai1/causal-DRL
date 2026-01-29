@@ -5,6 +5,8 @@ Baselines:
   2. SB3 DQN
   3. Custom DQN (no regularization)
   4. Custom DQN + causal rank regularization
+  5. Tabular Q-Learning (if state space tractable)
+  6. Dyna-Q (if state space tractable)
 
 All baselines share the same generated instance and causal graph.
 Results are grouped under a single timestamped output directory.
@@ -25,6 +27,8 @@ from causal_fmdp_drl.graphs.extract_dbn import extract_causal_graph
 from causal_fmdp_drl.agents.sb3_runner import train_sb3
 from causal_fmdp_drl.agents.custom_dqn_runner import train_custom_dqn
 from causal_fmdp_drl.agents.custom_dqn.agent import DQNConfig
+from causal_fmdp_drl.agents.tabular_runner import train_tabular_q, train_dyna_q
+from causal_fmdp_drl.agents.tabular.state_encoding import check_tractable
 from plot_results import generate_all_plots
 
 
@@ -42,6 +46,12 @@ def main():
                         help="Regularization strength for custom DQN + reg")
     parser.add_argument("--hidden_dim", type=int, default=64,
                         help="Hidden layer width for all methods (2 layers)")
+    parser.add_argument("--planning_steps", type=int, default=10,
+                        help="Planning steps per real step for Dyna-Q")
+    parser.add_argument("--skip_tabular", action="store_true",
+                        help="Skip tabular methods even if state space is tractable")
+    parser.add_argument("--eps_decay_frac", type=float, default=0.5,
+                        help="Fraction of timesteps over which to decay epsilon (tabular methods)")
     args = parser.parse_args()
 
     # --- 1. Generate shared instance ---
@@ -63,13 +73,11 @@ def main():
     base_dir = Path("outputs") / f"{timestamp}_comparison_m{args.num_machines}"
     base_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save shared run config
+    # Save shared run config (baselines list will be updated after running)
     run_config = {
         **vars(args),
-        "baselines": ["sb3_ppo", "sb3_dqn", "custom_dqn_noreg", "custom_dqn_reg"],
+        "baselines": [],  # Will be populated after determining which run
     }
-    with open(base_dir / "run_config.json", "w") as f:
-        json.dump(run_config, f, indent=2)
 
     # Save shared graph
     with open(base_dir / "graph.json", "w") as f:
@@ -87,13 +95,21 @@ def main():
     print(f"Output: {base_dir}")
     print()
 
-    # --- 4. Run each baseline ---
+    # --- 4. Check tabular tractability ---
+    tabular_ok = check_tractable(args.num_machines) and not args.skip_tabular
+
+    # --- 5. Run each baseline ---
     baselines = [
-        ("sb3_ppo", "SB3 PPO"),
-        ("sb3_dqn", "SB3 DQN"),
-        ("custom_dqn_noreg", "Custom DQN (no reg)"),
-        ("custom_dqn_reg", f"Custom DQN (lambda={args.lambda_reg})"),
+        ("sb3_ppo", "SB3 PPO", True),
+        ("sb3_dqn", "SB3 DQN", True),
+        ("custom_dqn_noreg", "Custom DQN (no reg)", True),
+        ("custom_dqn_reg", f"Custom DQN (lambda={args.lambda_reg})", True),
+        ("tabular_q", "Tabular Q-Learning", tabular_ok),
+        ("dyna_q", f"Dyna-Q (k={args.planning_steps})", tabular_ok),
     ]
+
+    # Filter to enabled baselines
+    baselines = [(k, l) for k, l, enabled in baselines if enabled]
 
     wall_times = {}
 
@@ -150,11 +166,33 @@ def main():
                 lambda_reg=args.lambda_reg,
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
             )
+        elif key == "tabular_q":
+            train_tabular_q(
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
+                eps_decay_frac=args.eps_decay_frac,
+            )
+        elif key == "dyna_q":
+            train_dyna_q(
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
+                planning_steps=args.planning_steps,
+                eps_decay_frac=args.eps_decay_frac,
+            )
 
         wall_times[key] = time.time() - t0
         print(f"  -> {output_dir} ({wall_times[key]:.1f}s)\n")
 
-    # Save wall times to run_config
+    # Save wall times and baselines to run_config
+    run_config["baselines"] = [k for k, _ in baselines]
     run_config["wall_times"] = wall_times
     with open(base_dir / "run_config.json", "w") as f:
         json.dump(run_config, f, indent=2)

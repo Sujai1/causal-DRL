@@ -66,6 +66,8 @@ BASELINE_COLORS = {
     "sb3_dqn": "#ff7f0e",
     "custom_dqn_noreg": "#2ca02c",
     "custom_dqn_reg": "#d62728",
+    "tabular_q": "#9467bd",
+    "dyna_q": "#8c564b",
 }
 
 BASELINE_LABELS = {
@@ -73,6 +75,8 @@ BASELINE_LABELS = {
     "sb3_dqn": "SB3 DQN",
     "custom_dqn_noreg": "Custom DQN (no reg)",
     "custom_dqn_reg": "Custom DQN (reg)",
+    "tabular_q": "Tabular Q-Learning",
+    "dyna_q": "Dyna-Q",
 }
 
 
