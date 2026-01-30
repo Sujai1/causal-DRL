@@ -25,6 +25,7 @@ def train_custom_dqn(
     lambda_reg: float = 0.0,
     dqn_config: Optional[DQNConfig] = None,
     print_every: int = 10,
+    gamma: float = 0.95,
 ) -> None:
     """Train custom DQN agent and log metrics.
 
@@ -39,6 +40,7 @@ def train_custom_dqn(
         dqn_config: Optional DQNConfig override. If None, uses defaults
             with the given lambda_reg.
         print_every: Print progress every N episodes (0 = silent).
+        gamma: Discount factor.
     """
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -58,10 +60,12 @@ def train_custom_dqn(
         dqn_config = DQNConfig(
             lambda_reg=lambda_reg,
             eps_decay_steps=int(total_timesteps * 0.1),
+            gamma=gamma,
         )
     else:
         dqn_config.lambda_reg = lambda_reg
         dqn_config.eps_decay_steps = int(total_timesteps * 0.1)
+        dqn_config.gamma = gamma
 
     agent = DQNAgent(
         obs_dim=env.observation_space.shape[0],

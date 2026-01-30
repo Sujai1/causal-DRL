@@ -63,14 +63,21 @@ class TestSingleRebootActionWrapper:
     def test_action_space_size(self, raw_env):
         env = FlattenObsWrapper(raw_env)
         env = SingleRebootActionWrapper(env)
-        assert env.action_space.n == 5
+        assert env.action_space.n == 6  # 5 reboots + 1 no-op
 
     def test_step_with_each_action(self, raw_env):
         env = FlattenObsWrapper(raw_env)
         env = SingleRebootActionWrapper(env)
         env.reset(seed=0)
-        for a in range(5):
+        for a in range(6):  # 5 reboots + 1 no-op
             obs, reward, terminated, truncated, info = env.step(a)
             assert obs.shape == (5,)
             if terminated or truncated:
                 env.reset()
+
+    def test_noop_action_maps_to_all_zeros(self, raw_env):
+        env = FlattenObsWrapper(raw_env)
+        env = SingleRebootActionWrapper(env)
+        noop_action = env.action_space.n - 1  # Last action is no-op
+        act_dict = env.action(noop_action)
+        assert all(v == 0 for v in act_dict.values())

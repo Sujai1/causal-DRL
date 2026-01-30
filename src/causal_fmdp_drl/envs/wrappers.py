@@ -39,10 +39,11 @@ class FlattenObsWrapper(gym.ObservationWrapper):
 
 
 class SingleRebootActionWrapper(gym.ActionWrapper):
-    """Convert Discrete(m) action to RDDL reboot action dict.
+    """Convert Discrete(m+1) action to RDDL reboot action dict.
 
-    Action i maps to rebooting computer c{i+1} (0-indexed action
-    to 1-indexed RDDL computer naming).
+    Actions 0..m-1 reboot computer c{i+1} (0-indexed action to
+    1-indexed RDDL computer naming). Action m is the no-op (do
+    nothing), mapping to all reboots = false.
     """
 
     def __init__(self, env: gym.Env):
@@ -53,9 +54,10 @@ class SingleRebootActionWrapper(gym.ActionWrapper):
         )
 
         self._action_keys = sorted(act_space.spaces.keys())
-        self.action_space = spaces.Discrete(len(self._action_keys))
+        self.action_space = spaces.Discrete(len(self._action_keys) + 1)
 
     def action(self, action: int) -> dict:
         act_dict = {k: 0 for k in self._action_keys}
-        act_dict[self._action_keys[action]] = 1
+        if action < len(self._action_keys):
+            act_dict[self._action_keys[action]] = 1
         return act_dict

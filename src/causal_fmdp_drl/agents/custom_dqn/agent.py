@@ -17,7 +17,7 @@ from ...graphs.causal_graph import CausalGraph
 @dataclass
 class DQNConfig:
     lr: float = 1e-4
-    gamma: float = 0.99
+    gamma: float = 0.95
     batch_size: int = 32
     buffer_size: int = 1_000_000
     target_update_freq: int = 10_000

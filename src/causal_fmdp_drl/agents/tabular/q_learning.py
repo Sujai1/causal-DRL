@@ -13,7 +13,7 @@ class TabularQConfig:
     """
 
     lr: float = 0.1  # Standard tabular learning rate
-    gamma: float = 0.99
+    gamma: float = 0.95
     eps_start: float = 1.0
     eps_end: float = 0.1  # Standard minimum exploration
     eps_decay_steps: int = 10_000  # Set by runner based on total_timesteps

@@ -52,6 +52,8 @@ def main():
                         help="Skip tabular methods even if state space is tractable")
     parser.add_argument("--eps_decay_frac", type=float, default=0.5,
                         help="Fraction of timesteps over which to decay epsilon (tabular methods)")
+    parser.add_argument("--gamma", type=float, default=0.95,
+                        help="Discount factor for all methods (default: 0.95 to match RDDL instance)")
     args = parser.parse_args()
 
     # --- 1. Generate shared instance ---
@@ -132,6 +134,7 @@ def main():
                 max_episode_steps=args.horizon,
                 seed=args.seed,
                 policy_kwargs=sb3_policy_kwargs,
+                gamma=args.gamma,
             )
         elif key == "sb3_dqn":
             train_sb3(
@@ -143,6 +146,7 @@ def main():
                 max_episode_steps=args.horizon,
                 seed=args.seed,
                 policy_kwargs=sb3_policy_kwargs,
+                gamma=args.gamma,
             )
         elif key == "custom_dqn_noreg":
             train_custom_dqn(
@@ -154,6 +158,7 @@ def main():
                 seed=args.seed,
                 lambda_reg=0.0,
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
+                gamma=args.gamma,
             )
         elif key == "custom_dqn_reg":
             train_custom_dqn(
@@ -165,6 +170,7 @@ def main():
                 seed=args.seed,
                 lambda_reg=args.lambda_reg,
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
+                gamma=args.gamma,
             )
         elif key == "tabular_q":
             train_tabular_q(
@@ -175,6 +181,7 @@ def main():
                 max_episode_steps=args.horizon,
                 seed=args.seed,
                 eps_decay_frac=args.eps_decay_frac,
+                gamma=args.gamma,
             )
         elif key == "dyna_q":
             train_dyna_q(
@@ -186,6 +193,7 @@ def main():
                 seed=args.seed,
                 planning_steps=args.planning_steps,
                 eps_decay_frac=args.eps_decay_frac,
+                gamma=args.gamma,
             )
 
         wall_times[key] = time.time() - t0

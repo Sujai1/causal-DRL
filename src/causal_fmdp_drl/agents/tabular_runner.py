@@ -106,6 +106,7 @@ def train_tabular_q(
     config: Optional[TabularQConfig] = None,
     print_every: int = 10,
     eps_decay_frac: float = 0.5,
+    gamma: float = 0.95,
 ) -> None:
     """Train tabular Q-learning agent and log metrics.
 
@@ -119,6 +120,7 @@ def train_tabular_q(
         config: Optional TabularQConfig override.
         print_every: Print progress every N episodes (0 = silent).
         eps_decay_frac: Fraction of total_timesteps over which to decay epsilon.
+        gamma: Discount factor.
     """
     np.random.seed(seed)
 
@@ -130,9 +132,13 @@ def train_tabular_q(
     num_actions = env.action_space.n
 
     if config is None:
-        config = TabularQConfig(eps_decay_steps=int(total_timesteps * eps_decay_frac))
+        config = TabularQConfig(
+            eps_decay_steps=int(total_timesteps * eps_decay_frac),
+            gamma=gamma,
+        )
     else:
         config.eps_decay_steps = int(total_timesteps * eps_decay_frac)
+        config.gamma = gamma
 
     agent = TabularQLearning(num_states, num_actions, config)
 
@@ -159,6 +165,7 @@ def train_dyna_q(
     config: Optional[DynaQConfig] = None,
     print_every: int = 10,
     eps_decay_frac: float = 0.5,
+    gamma: float = 0.95,
 ) -> None:
     """Train Dyna-Q agent and log metrics.
 
@@ -173,6 +180,7 @@ def train_dyna_q(
         config: Optional DynaQConfig override.
         print_every: Print progress every N episodes (0 = silent).
         eps_decay_frac: Fraction of total_timesteps over which to decay epsilon.
+        gamma: Discount factor.
     """
     np.random.seed(seed)
 
@@ -187,10 +195,12 @@ def train_dyna_q(
         config = DynaQConfig(
             eps_decay_steps=int(total_timesteps * eps_decay_frac),
             planning_steps=planning_steps,
+            gamma=gamma,
         )
     else:
         config.eps_decay_steps = int(total_timesteps * eps_decay_frac)
         config.planning_steps = planning_steps
+        config.gamma = gamma
 
     agent = DynaQ(num_states, num_actions, config)
 

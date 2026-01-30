@@ -153,7 +153,7 @@ class TestTrainCustomDQNRunner:
             print_every=0,
         )
         from causal_fmdp_drl.agents.custom_dqn.network import QNetwork
-        net = QNetwork(obs_dim=5, num_actions=5, hidden_dim=DQNConfig().hidden_dim)
+        net = QNetwork(obs_dim=5, num_actions=6, hidden_dim=DQNConfig().hidden_dim)
         net.load_state_dict(torch.load(output_dir / "q_net.pt", weights_only=True))
 
     def test_graph_json_has_k_global(self, instance_path, tmp_path):

@@ -35,7 +35,7 @@ class TestMakeSysadminEnv:
     def test_action_space(self, env_and_graph):
         env, _ = env_and_graph
         assert isinstance(env.action_space, spaces.Discrete)
-        assert env.action_space.n == 5
+        assert env.action_space.n == 6  # 5 reboots + 1 no-op
 
     def test_graph_returned(self, env_and_graph):
         _, graph = env_and_graph

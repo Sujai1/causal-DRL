@@ -221,5 +221,5 @@ class TestTabularRunner:
         )
 
         Q = np.load(output_dir / "q_table.npy")
-        # 3 machines -> 8 states, 3 actions
-        assert Q.shape == (8, 3)
+        # 3 machines -> 8 states, 4 actions (3 reboots + 1 no-op)
+        assert Q.shape == (8, 4)
