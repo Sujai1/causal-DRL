@@ -7,7 +7,7 @@ from causal_fmdp_drl.agents.custom_dqn.agent import DQNAgent, DQNConfig
 from causal_fmdp_drl.graphs.causal_graph import CausalGraph
 
 
-def _make_agent(lambda_reg=0.0, learning_starts=10, train_freq=1, k_global=2):
+def _make_agent(lambda_reg=0.0, learning_starts=10, train_freq=1, k_global=2, reg_type="none"):
     adj = np.zeros((4, 4))
     adj[0, 1] = adj[1, 2] = adj[2, 3] = 1
     # Manually set adjacency so k_global = k_global param
@@ -17,6 +17,7 @@ def _make_agent(lambda_reg=0.0, learning_starts=10, train_freq=1, k_global=2):
     graph = CausalGraph(state_vars=["a", "b", "c", "d"], adjacency=adj)
     config = DQNConfig(
         lambda_reg=lambda_reg,
+        reg_type=reg_type,
         learning_starts=learning_starts,
         train_freq=train_freq,
         buffer_size=200,
@@ -77,7 +78,7 @@ class TestDQNAgent:
         assert losses.get("reg_loss", 0.0) == 0.0
 
     def test_reg_loss_nonzero_when_reg_enabled(self):
-        agent = _make_agent(lambda_reg=0.01, learning_starts=5, train_freq=1)
+        agent = _make_agent(lambda_reg=0.01, learning_starts=5, train_freq=1, reg_type="rank_bound")
         # Use varied observations so features aren't degenerate
         np.random.seed(0)
         for _ in range(50):

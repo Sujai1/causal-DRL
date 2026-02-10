@@ -23,6 +23,10 @@ def train_custom_dqn(
     max_episode_steps: int = 100,
     seed: int = 0,
     lambda_reg: float = 0.0,
+    reg_type: str = "none",
+    k_target: Optional[int] = None,
+    gate_tau: float = 0.005,
+    reg_warmup_steps: int = 0,
     dqn_config: Optional[DQNConfig] = None,
     print_every: int = 10,
     gamma: float = 0.95,
@@ -37,6 +41,10 @@ def train_custom_dqn(
         max_episode_steps: TimeLimit wrapper horizon.
         seed: Random seed for numpy, torch, and env.
         lambda_reg: Regularization strength (0 = no regularization).
+        reg_type: Regularization type ("none", "rank_bound", "spectral_ratio", "gradient_balanced").
+        k_target: Manual k_target override for rank_bound (default: use k_global).
+        gate_tau: Soft gate threshold for gradient_balanced (default: 0.5% tail energy).
+        reg_warmup_steps: Steps before regularization starts (0 = use eps_decay_steps).
         dqn_config: Optional DQNConfig override. If None, uses defaults
             with the given lambda_reg.
         print_every: Print progress every N episodes (0 = silent).
@@ -59,11 +67,19 @@ def train_custom_dqn(
     if dqn_config is None:
         dqn_config = DQNConfig(
             lambda_reg=lambda_reg,
+            reg_type=reg_type,
+            k_target_override=k_target,
+            gate_tau=gate_tau,
+            reg_warmup_steps=reg_warmup_steps,
             eps_decay_steps=int(total_timesteps * 0.1),
             gamma=gamma,
         )
     else:
         dqn_config.lambda_reg = lambda_reg
+        dqn_config.reg_type = reg_type
+        dqn_config.k_target_override = k_target
+        dqn_config.gate_tau = gate_tau
+        dqn_config.reg_warmup_steps = reg_warmup_steps
         dqn_config.eps_decay_steps = int(total_timesteps * 0.1)
         dqn_config.gamma = gamma
 

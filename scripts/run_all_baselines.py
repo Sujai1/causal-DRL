@@ -54,6 +54,21 @@ def main():
                         help="Fraction of timesteps over which to decay epsilon (tabular methods)")
     parser.add_argument("--gamma", type=float, default=0.95,
                         help="Discount factor for all methods (default: 0.95 to match RDDL instance)")
+    parser.add_argument("--k_targets", type=int, nargs="+", default=None,
+                        help="Additional k_target values for rank-bound. k_global is always "
+                             "included automatically. Creates one baseline per unique k value.")
+    parser.add_argument("--baselines", type=str, nargs="+", default=None,
+                        choices=["sb3_ppo", "sb3_dqn", "custom_dqn_noreg",
+                                 "custom_dqn_rank_bound", "custom_dqn_gradient_balanced",
+                                 "custom_dqn_spectral_ratio", "tabular_q", "dyna_q"],
+                        help="Which baselines to run. If not specified, runs all. "
+                             "custom_dqn_rank_bound and custom_dqn_gradient_balanced expand based on --k_targets.")
+    parser.add_argument("--gate_tau", type=float, default=0.005,
+                        help="Soft gate threshold for gradient_balanced (default: 0.005 = 0.5%% tail energy). "
+                             "Lower values make the gate turn off faster when constraint is satisfied.")
+    parser.add_argument("--reg_warmup_frac", type=float, default=0.1,
+                        help="Fraction of timesteps before regularization starts (default: 0.1 = 10%%). "
+                             "During warmup, representation forms without regularization interference.")
     args = parser.parse_args()
 
     # --- 1. Generate shared instance ---
@@ -78,7 +93,7 @@ def main():
     # Save shared run config (baselines list will be updated after running)
     run_config = {
         **vars(args),
-        "baselines": [],  # Will be populated after determining which run
+        "baselines_ran": [],  # Will be populated after running
     }
 
     # Save shared graph
@@ -94,24 +109,73 @@ def main():
     print(f"K_causal(m={args.num_machines}): {graph.K_causal(args.num_machines)}")
     print(f"Graph density: {graph.density:.3f}")
     print(f"Timesteps: {args.timesteps}")
+    if args.baselines:
+        print(f"Selected baselines: {', '.join(args.baselines)}")
     print(f"Output: {base_dir}")
     print()
 
     # --- 4. Check tabular tractability ---
     tabular_ok = check_tractable(args.num_machines) and not args.skip_tabular
 
-    # --- 5. Run each baseline ---
-    baselines = [
-        ("sb3_ppo", "SB3 PPO", True),
-        ("sb3_dqn", "SB3 DQN", True),
-        ("custom_dqn_noreg", "Custom DQN (no reg)", True),
-        ("custom_dqn_reg", f"Custom DQN (lambda={args.lambda_reg})", True),
-        ("tabular_q", "Tabular Q-Learning", tabular_ok),
-        ("dyna_q", f"Dyna-Q (k={args.planning_steps})", tabular_ok),
-    ]
+    # --- 5. Determine which baselines to run ---
+    selected = set(args.baselines) if args.baselines else None  # None means run all
 
-    # Filter to enabled baselines
-    baselines = [(k, l) for k, l, enabled in baselines if enabled]
+    def should_run(key: str) -> bool:
+        """Check if baseline should run based on --baselines flag and tractability."""
+        if key in ("tabular_q", "dyna_q") and not tabular_ok:
+            return False
+        if selected is None:
+            return True
+        # For rank-bound variants, check if "custom_dqn_rank_bound" was selected
+        if key.startswith("custom_dqn_rank_bound"):
+            return "custom_dqn_rank_bound" in selected
+        # For gradient_balanced variants, check if "custom_dqn_gradient_balanced" was selected
+        if key.startswith("custom_dqn_gradient_balanced"):
+            return "custom_dqn_gradient_balanced" in selected
+        return key in selected
+
+    baselines = []
+
+    # Core baselines
+    if should_run("sb3_ppo"):
+        baselines.append(("sb3_ppo", "SB3 PPO"))
+    if should_run("sb3_dqn"):
+        baselines.append(("sb3_dqn", "SB3 DQN"))
+    if should_run("custom_dqn_noreg"):
+        baselines.append(("custom_dqn_noreg", "Custom DQN (no reg)"))
+
+    # Rank-bound baselines (one per k_target, always includes k_global)
+    if should_run("custom_dqn_rank_bound"):
+        # Build set of k values: user-specified + k_global (to avoid duplicates)
+        k_values = set(args.k_targets) if args.k_targets else set()
+        k_values.add(graph.k_global)
+
+        for k in sorted(k_values):
+            label_suffix = " (k_global)" if k == graph.k_global else ""
+            baselines.append((
+                f"custom_dqn_rank_bound_k{k}",
+                f"Custom DQN Rank-Bound (k={k}{label_suffix})",
+            ))
+
+    # Gradient-balanced baselines (one per k_target, always includes k_global)
+    if should_run("custom_dqn_gradient_balanced"):
+        k_values = set(args.k_targets) if args.k_targets else set()
+        k_values.add(graph.k_global)
+
+        for k in sorted(k_values):
+            label_suffix = " (k_global)" if k == graph.k_global else ""
+            baselines.append((
+                f"custom_dqn_gradient_balanced_k{k}",
+                f"Custom DQN Grad-Balanced (k={k}{label_suffix})",
+            ))
+
+    # Spectral-ratio and tabular baselines
+    if should_run("custom_dqn_spectral_ratio"):
+        baselines.append(("custom_dqn_spectral_ratio", f"Custom DQN Spectral-Ratio (lambda={args.lambda_reg})"))
+    if should_run("tabular_q"):
+        baselines.append(("tabular_q", "Tabular Q-Learning"))
+    if should_run("dyna_q"):
+        baselines.append(("dyna_q", f"Dyna-Q (k={args.planning_steps})"))
 
     wall_times = {}
 
@@ -160,7 +224,11 @@ def main():
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
             )
-        elif key == "custom_dqn_reg":
+        elif key == "custom_dqn_rank_bound" or key.startswith("custom_dqn_rank_bound_k"):
+            # Extract k_target from key if specified (e.g., "custom_dqn_rank_bound_k8" -> 8)
+            k_target = None
+            if "_k" in key:
+                k_target = int(key.split("_k")[-1])
             train_custom_dqn(
                 domain_path=domain_path,
                 instance_path=instance_path,
@@ -169,6 +237,40 @@ def main():
                 max_episode_steps=args.horizon,
                 seed=args.seed,
                 lambda_reg=args.lambda_reg,
+                reg_type="rank_bound",
+                k_target=k_target,
+                dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
+                gamma=args.gamma,
+            )
+        elif key.startswith("custom_dqn_gradient_balanced"):
+            # Extract k_target from key (e.g., "custom_dqn_gradient_balanced_k8" -> 8)
+            k_target = int(key.split("_k")[-1])
+            reg_warmup = int(args.timesteps * args.reg_warmup_frac)
+            train_custom_dqn(
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
+                lambda_reg=args.lambda_reg,
+                reg_type="gradient_balanced",
+                k_target=k_target,
+                gate_tau=args.gate_tau,
+                reg_warmup_steps=reg_warmup,
+                dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
+                gamma=args.gamma,
+            )
+        elif key == "custom_dqn_spectral_ratio":
+            train_custom_dqn(
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
+                lambda_reg=args.lambda_reg,
+                reg_type="spectral_ratio",
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
             )
@@ -200,7 +302,7 @@ def main():
         print(f"  -> {output_dir} ({wall_times[key]:.1f}s)\n")
 
     # Save wall times and baselines to run_config
-    run_config["baselines"] = [k for k, _ in baselines]
+    run_config["baselines_ran"] = [k for k, _ in baselines]
     run_config["wall_times"] = wall_times
     with open(base_dir / "run_config.json", "w") as f:
         json.dump(run_config, f, indent=2)
