@@ -88,6 +88,7 @@ BASELINE_COLORS = {
     "sb3_dqn": "#ff7f0e",
     "custom_dqn_noreg": "#2ca02c",
     "custom_dqn_rank_bound": "#d62728",
+    "custom_dqn_noreg_ln": "#006400",
     "custom_dqn_spectral_ratio": "#e377c2",
     "tabular_q": "#9467bd",
     "dyna_q": "#8c564b",
@@ -117,12 +118,25 @@ GRADIENT_BALANCED_COLORS = [
     "#b3b3b3",  # silver
 ]
 
+# Distinct colors for gradient-balanced + InFeR variants
+GRAD_BAL_INFER_COLORS = [
+    "#e41a1c",  # red
+    "#ff7f00",  # orange
+    "#984ea3",  # purple
+    "#a65628",  # brown
+    "#f781bf",  # pink
+    "#377eb8",  # blue
+    "#4daf4a",  # green
+    "#999999",  # gray
+]
+
 BASELINE_LABELS = {
     "sb3_ppo": "SB3 PPO",
     "sb3_dqn": "SB3 DQN",
     "custom_dqn_noreg": "Custom DQN (no reg)",
     "custom_dqn_rank_bound": "Custom DQN (Rank-Bound)",
     "custom_dqn_spectral_ratio": "Custom DQN (Spectral-Ratio)",
+    "custom_dqn_noreg_ln": "DQN + LN (no reg)",
     "tabular_q": "Tabular Q-Learning",
     "dyna_q": "Dyna-Q",
 }
@@ -150,6 +164,9 @@ def _color(name: str, variant_index: int = 0) -> str:
     # Handle dynamic rank-bound variants (custom_dqn_rank_bound_k8, etc.)
     if name.startswith("custom_dqn_rank_bound_k"):
         return RANK_BOUND_COLORS[variant_index % len(RANK_BOUND_COLORS)]
+    # Handle gradient-balanced + InFeR variants (check before plain gradient_balanced)
+    if name.startswith("custom_dqn_gradient_balanced_infer_k"):
+        return GRAD_BAL_INFER_COLORS[variant_index % len(GRAD_BAL_INFER_COLORS)]
     # Handle dynamic gradient-balanced variants
     if name.startswith("custom_dqn_gradient_balanced_k"):
         return GRADIENT_BALANCED_COLORS[variant_index % len(GRADIENT_BALANCED_COLORS)]
@@ -163,6 +180,10 @@ def _label(name: str) -> str:
     if name.startswith("custom_dqn_rank_bound_k"):
         k = name.split("_k")[-1]
         return f"Rank-Bound (k={k})"
+    # Handle gradient-balanced + InFeR variants (check before plain gradient_balanced)
+    if name.startswith("custom_dqn_gradient_balanced_infer_k"):
+        k = name.split("_k")[-1]
+        return f"GB+InFeR (k={k})"
     # Handle dynamic gradient-balanced variants
     if name.startswith("custom_dqn_gradient_balanced_k"):
         k = name.split("_k")[-1]
@@ -174,14 +195,20 @@ def _label(name: str) -> str:
 # Plot functions
 # ---------------------------------------------------------------------------
 
-def _get_variant_color(name: str, rb_idx: int, gb_idx: int) -> tuple[str, int, int]:
-    """Get color for a variant and return updated indices."""
-    if name.startswith("custom_dqn_gradient_balanced_k"):
-        return _color(name, gb_idx), rb_idx, gb_idx + 1
+def _get_variant_color(name: str, idx: dict) -> str:
+    """Get color for a variant and update index counters in-place."""
+    if name.startswith("custom_dqn_gradient_balanced_infer_k"):
+        c = _color(name, idx.get("gbi", 0))
+        idx["gbi"] = idx.get("gbi", 0) + 1
+    elif name.startswith("custom_dqn_gradient_balanced_k"):
+        c = _color(name, idx.get("gb", 0))
+        idx["gb"] = idx.get("gb", 0) + 1
     elif name.startswith("custom_dqn_rank_bound_k"):
-        return _color(name, rb_idx), rb_idx + 1, gb_idx
+        c = _color(name, idx.get("rb", 0))
+        idx["rb"] = idx.get("rb", 0) + 1
     else:
-        return _color(name, 0), rb_idx, gb_idx
+        c = _color(name, 0)
+    return c
 
 
 def plot_learning_curves(
@@ -191,14 +218,14 @@ def plot_learning_curves(
     fig, ax = plt.subplots(figsize=(10, 6))
     sorted_names = sorted(metrics.keys())
     num_curves = len(sorted_names)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(sorted_names):
         records = metrics[name]
         timesteps = [r["timestep"] for r in records]
         returns = [r["episode_return"] for r in records]
         smoothed = _rolling_mean(returns, smoothing)
         smoothed_jittered = _add_jitter(smoothed, curve_idx, num_curves)
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ax.plot(timesteps, smoothed_jittered, label=_label(name), color=color, alpha=0.9)
         ax.plot(timesteps, returns, color=color, alpha=0.15)
     ax.set_xlabel("Timestep")
@@ -217,12 +244,12 @@ def plot_td_loss(metrics: dict[str, list[dict]], output_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
     plotted = False
     num_curves = len(all_variants)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(all_variants):
         records = [r for r in metrics[name] if "td_loss" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         values = np.array([r["td_loss"] for r in records])
         values_jittered = _add_jitter(values, curve_idx, num_curves)
         ax.plot(
@@ -251,12 +278,12 @@ def plot_reg_loss(metrics: dict[str, list[dict]], output_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
     plotted = False
     num_curves = len(reg_variants)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(reg_variants):
         records = [r for r in metrics[name] if "reg_loss" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         values = np.array([r["reg_loss"] for r in records])
         values_jittered = _add_jitter(values, curve_idx, num_curves)
         ax.plot(
@@ -287,12 +314,12 @@ def plot_reg_contribution(metrics: dict[str, list[dict]], output_path: Path) -> 
     # Left: reg_contribution absolute value
     ax = axes[0]
     plotted = False
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(reg_variants):
         records = [r for r in metrics[name] if "reg_contribution" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         values = np.array([r["reg_contribution"] for r in records])
         values_jittered = _add_jitter(values, curve_idx, num_curves)
         ax.plot(
@@ -311,12 +338,12 @@ def plot_reg_contribution(metrics: dict[str, list[dict]], output_path: Path) -> 
     # Right: ratio of reg_contribution to td_loss
     ax = axes[1]
     plotted_ratio = False
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(reg_variants):
         records = [r for r in metrics[name] if "reg_contribution" in r and "td_loss" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ratios = np.array([r["reg_contribution"] / (r["td_loss"] + 1e-8) for r in records])
         ratios_jittered = _add_jitter(ratios, curve_idx, num_curves)
         ax.plot(
@@ -347,12 +374,12 @@ def plot_q_spread(metrics: dict[str, list[dict]], output_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
     plotted = False
     num_curves = len(all_variants)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(all_variants):
         records = [r for r in metrics[name] if "q_spread" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         values = np.array([r["q_spread"] for r in records])
         values_jittered = _add_jitter(values, curve_idx, num_curves)
         ax.plot(
@@ -380,12 +407,12 @@ def plot_epsilon(metrics: dict[str, list[dict]], output_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
     plotted = False
     num_curves = len(all_variants)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(all_variants):
         records = [r for r in metrics[name] if "epsilon" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         values = np.array([r["epsilon"] for r in records])
         values_jittered = _add_jitter(values, curve_idx, num_curves)
         ax.plot(
@@ -413,12 +440,12 @@ def plot_effective_rank(metrics: dict[str, list[dict]], output_path: Path) -> No
     fig, ax = plt.subplots(figsize=(10, 6))
     plotted = False
     num_curves = len(all_variants)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for curve_idx, name in enumerate(all_variants):
         records = [r for r in metrics[name] if "effective_rank" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         values = np.array([r["effective_rank"] for r in records])
         values_jittered = _add_jitter(values, curve_idx, num_curves)
         ax.plot(
@@ -452,12 +479,12 @@ def plot_svd_spectrum(metrics: dict[str, list[dict]], output_path: Path) -> None
         plt.close(fig)
         return
     width = 0.8 / len(variants_with_data)
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for i, name in enumerate(variants_with_data):
         records = [r for r in metrics[name] if "singular_values" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         sv = np.array(records[-1]["singular_values"])
         x = np.arange(len(sv))
         offset = (i - len(variants_with_data) / 2 + 0.5) * width
@@ -486,9 +513,9 @@ def plot_wall_time(run_config: dict, output_path: Path) -> None:
     labels = [_label(n) for n in names]
     # Compute colors with proper variant indexing
     colors = []
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for n in names:
-        color, rb_idx, gb_idx = _get_variant_color(n, rb_idx, gb_idx)
+        color = _get_variant_color(n, cidx)
         colors.append(color)
 
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -541,9 +568,9 @@ def plot_sample_efficiency(
     aucs = [stats[n]["auc"] for n in names]
     # Compute colors with proper variant indexing
     colors = []
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for n in names:
-        color, rb_idx, gb_idx = _get_variant_color(n, rb_idx, gb_idx)
+        color = _get_variant_color(n, cidx)
         colors.append(color)
     labels = [_label(n) for n in names]
     ax.bar(labels, aucs, color=colors, alpha=0.8)
@@ -595,12 +622,12 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
 
     # Plot 1: Soft gate value
     ax = axes[0, 0]
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for name in gb_variants:
         records = [r for r in metrics[name] if "gate" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ax.plot([r["timestep"] for r in records], [r["gate"] for r in records],
                 label=_label(name), color=color)
     ax.set_xlabel("Timestep")
@@ -612,12 +639,12 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
 
     # Plot 2: Effective reg grad ratio (verification: should ≈ lambda * gate)
     ax = axes[0, 1]
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for name in gb_variants:
         records = [r for r in metrics[name] if "eff_reg_grad_ratio" in r and r.get("eff_reg_grad_ratio", 0) > 0]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ax.plot([r["timestep"] for r in records], [r["eff_reg_grad_ratio"] for r in records],
                 label=_label(name), color=color)
     ax.set_xlabel("Timestep")
@@ -628,12 +655,12 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
 
     # Plot 3: Tail ratio (relative tail energy)
     ax = axes[0, 2]
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for name in gb_variants:
         records = [r for r in metrics[name] if "tail_ratio" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ax.plot([r["timestep"] for r in records], [r["tail_ratio"] for r in records],
                 label=_label(name), color=color)
     ax.set_xlabel("Timestep")
@@ -644,12 +671,12 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
 
     # Plot 4: Gradient norms (g_td_norm and g_reg_norm)
     ax = axes[1, 0]
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for name in gb_variants:
         records = [r for r in metrics[name] if "g_td_norm" in r and r.get("g_td_norm", 0) > 0]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         timesteps = [r["timestep"] for r in records]
         ax.plot(timesteps, [r["g_td_norm"] for r in records],
                 label=f"{_label(name)} (TD)", color=color, linestyle="-")
@@ -664,12 +691,12 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
 
     # Plot 5: Gradient scale factor
     ax = axes[1, 1]
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for name in gb_variants:
         records = [r for r in metrics[name] if "grad_scale" in r and r.get("grad_scale", 0) > 0]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ax.plot([r["timestep"] for r in records], [r["grad_scale"] for r in records],
                 label=_label(name), color=color)
     ax.set_xlabel("Timestep")
@@ -681,12 +708,12 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
 
     # Plot 6: Reg contribution
     ax = axes[1, 2]
-    rb_idx, gb_idx = 0, 0
+    cidx = {}
     for name in gb_variants:
         records = [r for r in metrics[name] if "reg_contribution" in r]
         if not records:
             continue
-        color, rb_idx, gb_idx = _get_variant_color(name, rb_idx, gb_idx)
+        color = _get_variant_color(name, cidx)
         ax.plot([r["timestep"] for r in records], [r["reg_contribution"] for r in records],
                 label=_label(name), color=color)
     ax.set_xlabel("Timestep")
@@ -695,6 +722,57 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_collapse_diagnostics(metrics: dict[str, list[dict]], output_path: Path) -> None:
+    """Rank collapse diagnostic plots: dead features, multi-batch rank, probe MSE, feature std."""
+    all_variants, _ = _get_custom_dqn_variants(metrics)
+    # Check if any variant has collapse diagnostics
+    has_data = any(
+        any("dead_feature_ratio" in r for r in metrics[name])
+        for name in all_variants
+    )
+    if not has_data:
+        return
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    plot_specs = [
+        (axes[0, 0], "dead_feature_ratio", "Dead Feature Ratio", "Fraction of Dead Units (std < 1e-5)"),
+        (axes[0, 1], "rank_mean", "Multi-Batch Effective Rank", "Effective Rank"),
+        (axes[1, 0], "probe_mse", "Linear Probe MSE (obs reconstruction)", "MSE"),
+        (axes[1, 1], "feature_std_median", "Median Per-Unit Feature Std", "Median Std"),
+    ]
+
+    for ax, key, title, ylabel in plot_specs:
+        cidx = {}
+        plotted = False
+        for name in all_variants:
+            records = [r for r in metrics[name] if key in r]
+            if not records:
+                continue
+            color = _get_variant_color(name, cidx)
+            timesteps = [r["timestep"] for r in records]
+            values = np.array([r[key] for r in records])
+            ax.plot(timesteps, values, label=_label(name), color=color, marker="o", markersize=2)
+
+            # For rank_mean, add error band from rank_std if available
+            if key == "rank_mean" and all("rank_std" in r for r in records):
+                stds = np.array([r["rank_std"] for r in records])
+                ax.fill_between(timesteps, values - stds, values + stds, color=color, alpha=0.15)
+
+            plotted = True
+        if plotted:
+            ax.set_xlabel("Timestep")
+            ax.set_ylabel(ylabel)
+            ax.set_title(title)
+            ax.legend(fontsize=8)
+            ax.grid(True, alpha=0.3)
+
+    fig.suptitle("Rank Collapse Diagnostics", fontsize=14, fontweight="bold")
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
     plt.close(fig)
@@ -840,6 +918,7 @@ def generate_all_plots(
     plot_effective_rank(metrics, output_dir / "effective_rank.png")
     plot_svd_spectrum(metrics, output_dir / "singular_value_spectrum.png")
     plot_gradient_balancing_diagnostics(metrics, output_dir / "gradient_balancing.png")
+    plot_collapse_diagnostics(metrics, output_dir / "collapse_diagnostics.png")
     plot_wall_time(run_config, output_dir / "wall_time.png")
     plot_sample_efficiency(metrics, output_dir / "sample_efficiency.png", threshold)
     write_summary(metrics, run_config, output_dir / "summary.json", threshold)

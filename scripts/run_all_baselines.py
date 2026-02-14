@@ -1,12 +1,13 @@
 """Run all baselines on a single SysAdmin instance and save results.
 
 Baselines:
-  1. SB3 PPO
-  2. SB3 DQN
-  3. Custom DQN (no regularization)
-  4. Custom DQN + causal rank regularization
-  5. Tabular Q-Learning (if state space tractable)
-  6. Dyna-Q (if state space tractable)
+  1. Custom DQN (no reg, no LN) — vanilla reference
+  2. Custom DQN + LN (no reg) — LayerNorm prevents rank collapse
+  3. Custom DQN + GB + LN (k=k_causal, k_targets...) — gradient-balanced tail energy with LN
+  4. SB3 PPO (optional)
+  5. SB3 DQN (optional)
+  6. Tabular Q-Learning (optional, if state space tractable)
+  7. Dyna-Q (optional, if state space tractable)
 
 All baselines share the same generated instance and causal graph.
 Results are grouped under a single timestamped output directory.
@@ -43,7 +44,7 @@ def main():
     parser.add_argument("--timesteps", type=int, default=50_000)
     parser.add_argument("--horizon", type=int, default=100)
     parser.add_argument("--lambda_reg", type=float, default=0.01,
-                        help="Regularization strength for custom DQN + reg")
+                        help="Regularization strength for gradient-balanced methods")
     parser.add_argument("--hidden_dim", type=int, default=64,
                         help="Hidden layer width for all methods (2 layers)")
     parser.add_argument("--planning_steps", type=int, default=10,
@@ -55,20 +56,26 @@ def main():
     parser.add_argument("--gamma", type=float, default=0.95,
                         help="Discount factor for all methods (default: 0.95 to match RDDL instance)")
     parser.add_argument("--k_targets", type=int, nargs="+", default=None,
-                        help="Additional k_target values for rank-bound. k_global is always "
+                        help="Additional k_target values for gradient-balanced. k_global is always "
                              "included automatically. Creates one baseline per unique k value.")
     parser.add_argument("--baselines", type=str, nargs="+", default=None,
-                        choices=["sb3_ppo", "sb3_dqn", "custom_dqn_noreg",
-                                 "custom_dqn_rank_bound", "custom_dqn_gradient_balanced",
-                                 "custom_dqn_spectral_ratio", "tabular_q", "dyna_q"],
+                        choices=["sb3_ppo", "sb3_dqn",
+                                 "custom_dqn_noreg", "custom_dqn_noreg_ln",
+                                 "custom_dqn_gradient_balanced",
+                                 "tabular_q", "dyna_q"],
                         help="Which baselines to run. If not specified, runs all. "
-                             "custom_dqn_rank_bound and custom_dqn_gradient_balanced expand based on --k_targets.")
+                             "custom_dqn_gradient_balanced expands based on --k_targets.")
     parser.add_argument("--gate_tau", type=float, default=0.005,
                         help="Soft gate threshold for gradient_balanced (default: 0.005 = 0.5%% tail energy). "
                              "Lower values make the gate turn off faster when constraint is satisfied.")
     parser.add_argument("--reg_warmup_frac", type=float, default=0.1,
                         help="Fraction of timesteps before regularization starts (default: 0.1 = 10%%). "
                              "During warmup, representation forms without regularization interference.")
+    # Domain dynamics overrides
+    parser.add_argument("--reboot_penalty", type=float, default=None,
+                        help="Override REBOOT-PENALTY in domain (default: 0.75 from domain.rddl)")
+    parser.add_argument("--reboot_prob", type=float, default=None,
+                        help="Override REBOOT-PROB (spontaneous recovery rate) in domain (default: 0.1)")
     args = parser.parse_args()
 
     # --- 1. Generate shared instance ---
@@ -80,6 +87,8 @@ def main():
         f"{args.topology}_m{args.num_machines}_s{args.seed}",
         artifacts_dir / "instances",
         horizon=args.horizon,
+        reboot_penalty=args.reboot_penalty,
+        reboot_prob=args.reboot_prob,
     )
 
     # --- 2. Extract shared causal graph ---
@@ -126,10 +135,7 @@ def main():
             return False
         if selected is None:
             return True
-        # For rank-bound variants, check if "custom_dqn_rank_bound" was selected
-        if key.startswith("custom_dqn_rank_bound"):
-            return "custom_dqn_rank_bound" in selected
-        # For gradient_balanced variants, check if "custom_dqn_gradient_balanced" was selected
+        # Gradient-balanced variants expand from base name
         if key.startswith("custom_dqn_gradient_balanced"):
             return "custom_dqn_gradient_balanced" in selected
         return key in selected
@@ -141,37 +147,27 @@ def main():
         baselines.append(("sb3_ppo", "SB3 PPO"))
     if should_run("sb3_dqn"):
         baselines.append(("sb3_dqn", "SB3 DQN"))
+
+    # Custom DQN (no reg, no LN) — vanilla reference
     if should_run("custom_dqn_noreg"):
         baselines.append(("custom_dqn_noreg", "Custom DQN (no reg)"))
 
-    # Rank-bound baselines (one per k_target, always includes k_global)
-    if should_run("custom_dqn_rank_bound"):
-        # Build set of k values: user-specified + k_global (to avoid duplicates)
-        k_values = set(args.k_targets) if args.k_targets else set()
-        k_values.add(graph.k_global)
+    # Custom DQN + LN (no reg)
+    if should_run("custom_dqn_noreg_ln"):
+        baselines.append(("custom_dqn_noreg_ln", "DQN + LN (no reg)"))
 
-        for k in sorted(k_values):
-            label_suffix = " (k_global)" if k == graph.k_global else ""
-            baselines.append((
-                f"custom_dqn_rank_bound_k{k}",
-                f"Custom DQN Rank-Bound (k={k}{label_suffix})",
-            ))
-
-    # Gradient-balanced baselines (one per k_target, always includes k_global)
+    # Gradient-balanced + LN baselines (one per k_target, always includes k_global)
     if should_run("custom_dqn_gradient_balanced"):
         k_values = set(args.k_targets) if args.k_targets else set()
         k_values.add(graph.k_global)
-
         for k in sorted(k_values):
             label_suffix = " (k_global)" if k == graph.k_global else ""
             baselines.append((
                 f"custom_dqn_gradient_balanced_k{k}",
-                f"Custom DQN Grad-Balanced (k={k}{label_suffix})",
+                f"GB+LN (k={k}{label_suffix})",
             ))
 
-    # Spectral-ratio and tabular baselines
-    if should_run("custom_dqn_spectral_ratio"):
-        baselines.append(("custom_dqn_spectral_ratio", f"Custom DQN Spectral-Ratio (lambda={args.lambda_reg})"))
+    # Tabular baselines
     if should_run("tabular_q"):
         baselines.append(("tabular_q", "Tabular Q-Learning"))
     if should_run("dyna_q"):
@@ -223,12 +219,9 @@ def main():
                 lambda_reg=0.0,
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
+                use_layernorm=False,
             )
-        elif key == "custom_dqn_rank_bound" or key.startswith("custom_dqn_rank_bound_k"):
-            # Extract k_target from key if specified (e.g., "custom_dqn_rank_bound_k8" -> 8)
-            k_target = None
-            if "_k" in key:
-                k_target = int(key.split("_k")[-1])
+        elif key == "custom_dqn_noreg_ln":
             train_custom_dqn(
                 domain_path=domain_path,
                 instance_path=instance_path,
@@ -236,14 +229,12 @@ def main():
                 total_timesteps=args.timesteps,
                 max_episode_steps=args.horizon,
                 seed=args.seed,
-                lambda_reg=args.lambda_reg,
-                reg_type="rank_bound",
-                k_target=k_target,
+                lambda_reg=0.0,
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
+                use_layernorm=True,
             )
         elif key.startswith("custom_dqn_gradient_balanced"):
-            # Extract k_target from key (e.g., "custom_dqn_gradient_balanced_k8" -> 8)
             k_target = int(key.split("_k")[-1])
             reg_warmup = int(args.timesteps * args.reg_warmup_frac)
             train_custom_dqn(
@@ -260,19 +251,7 @@ def main():
                 reg_warmup_steps=reg_warmup,
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
-            )
-        elif key == "custom_dqn_spectral_ratio":
-            train_custom_dqn(
-                domain_path=domain_path,
-                instance_path=instance_path,
-                output_dir=output_dir,
-                total_timesteps=args.timesteps,
-                max_episode_steps=args.horizon,
-                seed=args.seed,
-                lambda_reg=args.lambda_reg,
-                reg_type="spectral_ratio",
-                dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
-                gamma=args.gamma,
+                use_layernorm=True,
             )
         elif key == "tabular_q":
             train_tabular_q(

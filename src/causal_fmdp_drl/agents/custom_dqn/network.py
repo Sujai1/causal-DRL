@@ -9,20 +9,40 @@ import torch.nn as nn
 class QNetwork(nn.Module):
     """MLP Q-network that exposes penultimate layer features.
 
-    Architecture: obs -> fc1 -> ReLU -> fc2 -> ReLU -> fc3 -> Q-values
+    Architecture (default):
+        obs -> fc1 -> ReLU -> fc2 -> ReLU -> fc3 -> Q-values
+    Architecture (use_layernorm=True):
+        obs -> fc1 -> LN -> ReLU -> fc2 -> LN -> ReLU -> fc3 -> Q-values
+
     The penultimate (fc2) activations are stored for regularization.
     """
 
-    def __init__(self, obs_dim: int, num_actions: int, hidden_dim: int = 128):
+    def __init__(
+        self,
+        obs_dim: int,
+        num_actions: int,
+        hidden_dim: int = 128,
+        use_layernorm: bool = False,
+    ):
         super().__init__()
         self.fc1 = nn.Linear(obs_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, num_actions)
+        self.use_layernorm = use_layernorm
+        if use_layernorm:
+            self.ln1 = nn.LayerNorm(hidden_dim)
+            self.ln2 = nn.LayerNorm(hidden_dim)
         self._features: torch.Tensor | None = None
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        x = torch.relu(self.fc1(obs))
-        x = torch.relu(self.fc2(x))
+        x = self.fc1(obs)
+        if self.use_layernorm:
+            x = self.ln1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+        if self.use_layernorm:
+            x = self.ln2(x)
+        x = torch.relu(x)
         self._features = x
         return self.fc3(x)
 

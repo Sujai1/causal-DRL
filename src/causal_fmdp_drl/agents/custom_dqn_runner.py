@@ -30,6 +30,10 @@ def train_custom_dqn(
     dqn_config: Optional[DQNConfig] = None,
     print_every: int = 10,
     gamma: float = 0.95,
+    infer_k: int = 8,
+    infer_beta: float = 1.0,
+    infer_alpha: float = 0.01,
+    use_layernorm: bool = False,
 ) -> None:
     """Train custom DQN agent and log metrics.
 
@@ -41,7 +45,8 @@ def train_custom_dqn(
         max_episode_steps: TimeLimit wrapper horizon.
         seed: Random seed for numpy, torch, and env.
         lambda_reg: Regularization strength (0 = no regularization).
-        reg_type: Regularization type ("none", "rank_bound", "spectral_ratio", "gradient_balanced").
+        reg_type: Regularization type ("none", "rank_bound", "spectral_ratio",
+            "gradient_balanced", "infer", "gradient_balanced_infer").
         k_target: Manual k_target override for rank_bound (default: use k_global).
         gate_tau: Soft gate threshold for gradient_balanced (default: 0.5% tail energy).
         reg_warmup_steps: Steps before regularization starts (0 = use eps_decay_steps).
@@ -49,6 +54,9 @@ def train_custom_dqn(
             with the given lambda_reg.
         print_every: Print progress every N episodes (0 = silent).
         gamma: Discount factor.
+        infer_k: InFeR projection dimension.
+        infer_beta: InFeR amplification factor for init targets.
+        infer_alpha: InFeR loss weight (for reg_type="infer").
     """
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -73,6 +81,10 @@ def train_custom_dqn(
             reg_warmup_steps=reg_warmup_steps,
             eps_decay_steps=int(total_timesteps * 0.1),
             gamma=gamma,
+            infer_k=infer_k,
+            infer_beta=infer_beta,
+            infer_alpha=infer_alpha,
+            use_layernorm=use_layernorm,
         )
     else:
         dqn_config.lambda_reg = lambda_reg
@@ -82,12 +94,18 @@ def train_custom_dqn(
         dqn_config.reg_warmup_steps = reg_warmup_steps
         dqn_config.eps_decay_steps = int(total_timesteps * 0.1)
         dqn_config.gamma = gamma
+        dqn_config.infer_k = infer_k
+        dqn_config.infer_beta = infer_beta
+        dqn_config.infer_alpha = infer_alpha
+        dqn_config.use_layernorm = use_layernorm
 
+    # Vanilla InFeR doesn't need causal graph; gradient_balanced_infer does (for k_target)
+    needs_causal_graph = reg_type in ("rank_bound", "gradient_balanced", "gradient_balanced_infer", "spectral_ratio")
     agent = DQNAgent(
         obs_dim=env.observation_space.shape[0],
         num_actions=env.action_space.n,
         config=dqn_config,
-        causal_graph=graph if lambda_reg > 0 else None,
+        causal_graph=graph if needs_causal_graph else None,
     )
 
     logger = JSONLLogger(output_dir / "metrics.jsonl")
@@ -119,10 +137,12 @@ def train_custom_dqn(
                 **losses,
             }
 
-            # Log SVD metrics periodically
+            # Log SVD and collapse diagnostics periodically
             if episode_count % SVD_LOG_EVERY == 0:
                 svd_metrics = agent.compute_svd_metrics()
                 log_entry.update(svd_metrics)
+                collapse_metrics = agent.compute_collapse_diagnostics()
+                log_entry.update(collapse_metrics)
 
             logger.log(log_entry)
 

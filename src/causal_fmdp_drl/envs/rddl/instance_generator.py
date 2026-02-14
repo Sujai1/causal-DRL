@@ -1,7 +1,7 @@
 """Generate RDDL instance files for SysAdmin with custom topologies."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import networkx as nx
 import numpy as np
@@ -39,11 +39,22 @@ def write_sysadmin_instance(
     output_dir: Path,
     horizon: int = 100,
     discount: float = 0.95,
+    reboot_penalty: Optional[float] = None,
+    reboot_prob: Optional[float] = None,
 ) -> Path:
     """Write a SysAdmin RDDL instance file.
 
     Uses 1-indexed computer names (c1, c2, ...) to match rddlrepository
     convention.
+
+    Args:
+        adj: Adjacency matrix for machine connectivity.
+        instance_name: Name for the RDDL instance.
+        output_dir: Directory to write the instance file.
+        horizon: Max steps per episode.
+        discount: Discount factor.
+        reboot_penalty: Override REBOOT-PENALTY (domain default: 0.75).
+        reboot_prob: Override REBOOT-PROB (domain default: 0.1).
 
     Returns:
         Path to the written instance file.
@@ -66,6 +77,12 @@ def write_sysadmin_instance(
                 connected_lines.append(
                     f"\t\tCONNECTED({computers[i]},{computers[j]});"
                 )
+
+    # Override domain defaults if specified
+    if reboot_penalty is not None:
+        connected_lines.append(f"\t\tREBOOT-PENALTY = {reboot_penalty};")
+    if reboot_prob is not None:
+        connected_lines.append(f"\t\tREBOOT-PROB = {reboot_prob};")
 
     # Build init-state (all running)
     init_lines = [f"\t\trunning({c});" for c in computers]

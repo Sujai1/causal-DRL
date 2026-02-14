@@ -1,0 +1,35 @@
+non-fluents nf_erdos_renyi_m5_s42 {
+	domain = sysadmin_mdp;
+	objects {
+		computer : {c1,c2,c3,c4,c5};
+	};
+	non-fluents {
+		CONNECTED(c1,c3);
+		CONNECTED(c1,c4);
+		CONNECTED(c1,c5);
+		CONNECTED(c3,c1);
+		CONNECTED(c3,c4);
+		CONNECTED(c4,c1);
+		CONNECTED(c4,c3);
+		CONNECTED(c4,c5);
+		CONNECTED(c5,c1);
+		CONNECTED(c5,c4);
+		REBOOT-PROB = 0.05;
+	};
+}
+
+instance erdos_renyi_m5_s42 {
+	domain = sysadmin_mdp;
+	non-fluents = nf_erdos_renyi_m5_s42;
+	init-state {
+		running(c1);
+		running(c2);
+		running(c3);
+		running(c4);
+		running(c5);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 20;
+	discount = 0.95;
+}
