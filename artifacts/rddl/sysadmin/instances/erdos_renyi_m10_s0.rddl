@@ -10,7 +10,6 @@ non-fluents nf_erdos_renyi_m10_s0 {
 		CONNECTED(c7,c6);
 		CONNECTED(c7,c9);
 		CONNECTED(c9,c7);
-		REBOOT-PROB = 0.01;
 	};
 }
 
@@ -31,6 +30,6 @@ instance erdos_renyi_m10_s0 {
 	};
 
 	max-nondef-actions = 1;
-	horizon  = 100;
+	horizon  = 20;
 	discount = 0.95;
 }

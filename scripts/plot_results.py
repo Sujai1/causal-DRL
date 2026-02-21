@@ -92,6 +92,11 @@ BASELINE_COLORS = {
     "custom_dqn_spectral_ratio": "#e377c2",
     "tabular_q": "#9467bd",
     "dyna_q": "#8c564b",
+    "heuristic_noop": "#7f7f7f",
+    "heuristic_random_down": "#8c564b",
+    "heuristic_highest_degree": "#9467bd",
+    "heuristic_most_down_neighbors": "#e377c2",
+    "heuristic_myopic_greedy": "#bcbd22",
 }
 
 # Distinct colors for dynamic rank-bound variants (k=2, 3, 4, 5, 6, ...)
@@ -139,6 +144,11 @@ BASELINE_LABELS = {
     "custom_dqn_noreg_ln": "DQN + LN (no reg)",
     "tabular_q": "Tabular Q-Learning",
     "dyna_q": "Dyna-Q",
+    "heuristic_noop": "No-Op",
+    "heuristic_random_down": "Random Down Reboot",
+    "heuristic_highest_degree": "Highest-Degree Down",
+    "heuristic_most_down_neighbors": "Most Down Neighbors",
+    "heuristic_myopic_greedy": "Myopic Greedy",
 }
 
 

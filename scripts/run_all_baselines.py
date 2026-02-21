@@ -30,6 +30,14 @@ from causal_fmdp_drl.agents.custom_dqn_runner import train_custom_dqn
 from causal_fmdp_drl.agents.custom_dqn.agent import DQNConfig
 from causal_fmdp_drl.agents.tabular_runner import train_tabular_q, train_dyna_q
 from causal_fmdp_drl.agents.tabular.state_encoding import check_tractable
+from causal_fmdp_drl.agents.heuristic_runner import run_heuristic
+from causal_fmdp_drl.agents.heuristic_policies import (
+    noop_policy,
+    random_down_reboot_policy,
+    highest_degree_down_policy,
+    most_down_neighbors_policy,
+    myopic_greedy_policy,
+)
 from plot_results import generate_all_plots
 
 
@@ -62,7 +70,11 @@ def main():
                         choices=["sb3_ppo", "sb3_dqn",
                                  "custom_dqn_noreg", "custom_dqn_noreg_ln",
                                  "custom_dqn_gradient_balanced",
-                                 "tabular_q", "dyna_q"],
+                                 "tabular_q", "dyna_q",
+                                 "heuristic_noop", "heuristic_random_down",
+                                 "heuristic_highest_degree",
+                                 "heuristic_most_down_neighbors",
+                                 "heuristic_myopic_greedy"],
                         help="Which baselines to run. If not specified, runs all. "
                              "custom_dqn_gradient_balanced expands based on --k_targets.")
     parser.add_argument("--gate_tau", type=float, default=0.005,
@@ -172,6 +184,18 @@ def main():
     if should_run("dyna_q"):
         baselines.append(("dyna_q", f"Dyna-Q (k={args.planning_steps})"))
 
+    # Heuristic baselines
+    if should_run("heuristic_noop"):
+        baselines.append(("heuristic_noop", "No-Op"))
+    if should_run("heuristic_random_down"):
+        baselines.append(("heuristic_random_down", "Random Down Reboot"))
+    if should_run("heuristic_highest_degree"):
+        baselines.append(("heuristic_highest_degree", "Highest-Degree Down"))
+    if should_run("heuristic_most_down_neighbors"):
+        baselines.append(("heuristic_most_down_neighbors", "Most Down Neighbors"))
+    if should_run("heuristic_myopic_greedy"):
+        baselines.append(("heuristic_myopic_greedy", "Myopic Greedy"))
+
     wall_times = {}
 
     for key, label in baselines:
@@ -277,6 +301,48 @@ def main():
                 planning_steps=args.planning_steps,
                 eps_decay_frac=args.eps_decay_frac,
                 gamma=args.gamma,
+            )
+        elif key.startswith("heuristic_"):
+            import numpy as np
+            heuristic_rng = np.random.default_rng(args.seed)
+            reboot_prob_val = args.reboot_prob if args.reboot_prob is not None else 0.1
+            reboot_penalty_val = args.reboot_penalty if args.reboot_penalty is not None else 0.75
+
+            policy_map = {
+                "heuristic_noop": (noop_policy, {
+                    "num_machines": args.num_machines,
+                }),
+                "heuristic_random_down": (random_down_reboot_policy, {
+                    "num_machines": args.num_machines,
+                    "rng": heuristic_rng,
+                }),
+                "heuristic_highest_degree": (highest_degree_down_policy, {
+                    "num_machines": args.num_machines,
+                    "adj": adj,
+                    "rng": heuristic_rng,
+                }),
+                "heuristic_most_down_neighbors": (most_down_neighbors_policy, {
+                    "num_machines": args.num_machines,
+                    "adj": adj,
+                    "rng": heuristic_rng,
+                }),
+                "heuristic_myopic_greedy": (myopic_greedy_policy, {
+                    "num_machines": args.num_machines,
+                    "adj": adj,
+                    "reboot_prob": reboot_prob_val,
+                    "reboot_penalty": reboot_penalty_val,
+                }),
+            }
+            policy_fn, policy_kwargs = policy_map[key]
+            run_heuristic(
+                policy_fn=policy_fn,
+                policy_kwargs=policy_kwargs,
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
             )
 
         wall_times[key] = time.time() - t0
