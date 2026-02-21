@@ -156,10 +156,9 @@ def main():
     if should_run("custom_dqn_noreg_ln"):
         baselines.append(("custom_dqn_noreg_ln", "DQN + LN (no reg)"))
 
-    # Gradient-balanced + LN baselines (one per k_target, always includes k_global)
+    # Gradient-balanced + LN baselines (one per k_target)
     if should_run("custom_dqn_gradient_balanced"):
-        k_values = set(args.k_targets) if args.k_targets else set()
-        k_values.add(graph.k_global)
+        k_values = set(args.k_targets) if args.k_targets else {graph.k_global}
         for k in sorted(k_values):
             label_suffix = " (k_global)" if k == graph.k_global else ""
             baselines.append((
@@ -220,6 +219,7 @@ def main():
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
                 use_layernorm=False,
+                eps_decay_frac=args.eps_decay_frac,
             )
         elif key == "custom_dqn_noreg_ln":
             train_custom_dqn(
@@ -233,6 +233,7 @@ def main():
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
                 use_layernorm=True,
+                eps_decay_frac=args.eps_decay_frac,
             )
         elif key.startswith("custom_dqn_gradient_balanced"):
             k_target = int(key.split("_k")[-1])
@@ -252,6 +253,7 @@ def main():
                 dqn_config=DQNConfig(hidden_dim=args.hidden_dim),
                 gamma=args.gamma,
                 use_layernorm=True,
+                eps_decay_frac=args.eps_decay_frac,
             )
         elif key == "tabular_q":
             train_tabular_q(

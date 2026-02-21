@@ -467,6 +467,87 @@ def plot_effective_rank(metrics: dict[str, list[dict]], output_path: Path) -> No
     plt.close(fig)
 
 
+def plot_feature_rank(metrics: dict[str, list[dict]], output_path: Path) -> None:
+    """Numerical feature rank (Lyle et al. 2022) vs timestep for custom DQN variants.
+
+    Uses absolute threshold eps=0.01 on 1/sqrt(n)-scaled singular values.
+    Unlike Shannon entropy effective rank, this detects uniform feature shrinkage.
+    """
+    all_variants, _ = _get_custom_dqn_variants(metrics)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plotted = False
+    num_curves = len(all_variants)
+    cidx = {}
+    for curve_idx, name in enumerate(all_variants):
+        records = [r for r in metrics[name] if "feature_rank" in r]
+        if not records:
+            continue
+        color = _get_variant_color(name, cidx)
+        values = np.array([r["feature_rank"] for r in records])
+        values_jittered = _add_jitter(values, curve_idx, num_curves)
+        ax.plot(
+            [r["timestep"] for r in records],
+            values_jittered,
+            label=_label(name), color=color, marker="o", markersize=3,
+        )
+        plotted = True
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel("Feature Rank")
+    ax.set_title("Numerical Feature Rank (Lyle et al. 2022, ε=0.01)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_cumulative_energy_dims(
+    metrics: dict[str, list[dict]], output_path: Path
+) -> None:
+    """Dimensions needed for 90% and 95% cumulative energy vs timestep.
+
+    Shows how many SVD dimensions capture most of the feature variance.
+    Directly interpretable: fewer dims = more concentrated representation.
+    """
+    all_variants, _ = _get_custom_dqn_variants(metrics)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    thresholds = [
+        ("dims_90pct_energy", "90%", axes[0]),
+        ("dims_95pct_energy", "95%", axes[1]),
+    ]
+    plotted = False
+    num_curves = len(all_variants)
+    for key, pct_label, ax in thresholds:
+        cidx = {}
+        for curve_idx, name in enumerate(all_variants):
+            records = [r for r in metrics[name] if key in r]
+            if not records:
+                continue
+            color = _get_variant_color(name, cidx)
+            values = np.array([r[key] for r in records])
+            values_jittered = _add_jitter(values, curve_idx, num_curves)
+            ax.plot(
+                [r["timestep"] for r in records],
+                values_jittered,
+                label=_label(name), color=color, marker="o", markersize=3,
+            )
+            plotted = True
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel("Number of Dimensions")
+        ax.set_title(f"Dimensions for {pct_label} Cumulative Energy")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    if not plotted:
+        plt.close(fig)
+        return
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_svd_spectrum(metrics: dict[str, list[dict]], output_path: Path) -> None:
     """Bar chart of singular values at final SVD snapshot for custom DQN variants."""
     all_variants, _ = _get_custom_dqn_variants(metrics)
@@ -916,6 +997,8 @@ def generate_all_plots(
     plot_q_spread(metrics, output_dir / "q_spread.png")
     plot_epsilon(metrics, output_dir / "epsilon_schedule.png")
     plot_effective_rank(metrics, output_dir / "effective_rank.png")
+    plot_feature_rank(metrics, output_dir / "feature_rank.png")
+    plot_cumulative_energy_dims(metrics, output_dir / "cumulative_energy_dims.png")
     plot_svd_spectrum(metrics, output_dir / "singular_value_spectrum.png")
     plot_gradient_balancing_diagnostics(metrics, output_dir / "gradient_balancing.png")
     plot_collapse_diagnostics(metrics, output_dir / "collapse_diagnostics.png")

@@ -34,6 +34,7 @@ def train_custom_dqn(
     infer_beta: float = 1.0,
     infer_alpha: float = 0.01,
     use_layernorm: bool = False,
+    eps_decay_frac: float = 1.0,
 ) -> None:
     """Train custom DQN agent and log metrics.
 
@@ -79,7 +80,7 @@ def train_custom_dqn(
             k_target_override=k_target,
             gate_tau=gate_tau,
             reg_warmup_steps=reg_warmup_steps,
-            eps_decay_steps=int(total_timesteps * 0.1),
+            eps_decay_steps=int(total_timesteps * eps_decay_frac),
             gamma=gamma,
             infer_k=infer_k,
             infer_beta=infer_beta,
@@ -92,7 +93,7 @@ def train_custom_dqn(
         dqn_config.k_target_override = k_target
         dqn_config.gate_tau = gate_tau
         dqn_config.reg_warmup_steps = reg_warmup_steps
-        dqn_config.eps_decay_steps = int(total_timesteps * 0.1)
+        dqn_config.eps_decay_steps = int(total_timesteps * eps_decay_frac)
         dqn_config.gamma = gamma
         dqn_config.infer_k = infer_k
         dqn_config.infer_beta = infer_beta

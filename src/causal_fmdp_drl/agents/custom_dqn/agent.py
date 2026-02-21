@@ -468,10 +468,16 @@ class DQNAgent:
     def compute_svd_metrics(self) -> dict:
         """Compute SVD-based representation metrics from a batch of features.
 
+        All metrics use the same centered feature matrix for consistency.
+
         Returns dict with:
             singular_values: list of singular values (descending)
             effective_rank: Shannon entropy-based effective rank
             rank_above_threshold: count of singular values > 1% of max
+            feature_rank: numerical feature rank (Lyle et al. 2022) with
+                1/sqrt(n) scaling and absolute threshold eps=0.01
+            dims_90pct_energy: min dimensions explaining 90% of cumulative energy
+            dims_95pct_energy: min dimensions explaining 95% of cumulative energy
         Returns empty dict if buffer has insufficient samples.
         """
         if self.buffer.size < self.config.batch_size:
@@ -484,6 +490,7 @@ class DQNAgent:
             sv = torch.linalg.svdvals(features_centered)
 
         sv_np = sv.cpu().numpy()
+        n = obs_batch.shape[0]
 
         # Effective rank via Shannon entropy of normalized singular values
         sv_norm = sv_np / (sv_np.sum() + 1e-10)
@@ -495,10 +502,27 @@ class DQNAgent:
         threshold = 0.01 * sv_np[0] if sv_np[0] > 0 else 0.0
         rank_above = int((sv_np > threshold).sum())
 
+        # Numerical feature rank (Lyle et al. 2022): count SVs of
+        # (1/sqrt(n)) * centered_features that exceed absolute threshold eps.
+        # No normalization by max SV — detects uniform shrinkage to zero.
+        sv_scaled = sv_np / np.sqrt(n)
+        feature_rank = int(np.sum(sv_scaled > 0.01))
+
+        # Cumulative energy dimensions: min m such that
+        # sum_{i=1}^{m} sigma_i^2 / sum_j sigma_j^2 >= threshold.
+        energy = sv_np ** 2
+        total_energy = energy.sum() + 1e-10
+        cumulative_energy = np.cumsum(energy) / total_energy
+        dims_90 = int(np.searchsorted(cumulative_energy, 0.90)) + 1
+        dims_95 = int(np.searchsorted(cumulative_energy, 0.95)) + 1
+
         return {
             "singular_values": sv_np.tolist(),
             "effective_rank": effective_rank,
             "rank_above_threshold": rank_above,
+            "feature_rank": feature_rank,
+            "dims_90pct_energy": dims_90,
+            "dims_95pct_energy": dims_95,
         }
 
     def train_step(self, obs, action, reward, next_obs, done) -> dict:
