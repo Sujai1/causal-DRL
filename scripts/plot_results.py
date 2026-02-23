@@ -747,13 +747,16 @@ def plot_wall_time(run_config: dict, output_path: Path) -> None:
 
 
 def plot_cumulative_return(
-    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 10
+    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 10,
+    filter_names: list[str] | None = None, title: str = "Cumulative Return Over Training",
 ) -> None:
-    """Cumulative episode return (AUC) over timesteps for all baselines.
+    """Cumulative episode return (AUC) over timesteps for all (or filtered) baselines.
 
     At each episode end, the y-value is the running sum of episode returns
     up to that point. This shows how total reward accumulates over training.
     """
+    if filter_names is not None:
+        metrics = {k: v for k, v in metrics.items() if k in filter_names}
     fig, ax = plt.subplots(figsize=(10, 6))
     sorted_names = sorted(metrics.keys())
     cidx = {}
@@ -773,7 +776,7 @@ def plot_cumulative_return(
         return
     ax.set_xlabel("Timestep")
     ax.set_ylabel("Cumulative Episode Return")
-    ax.set_title("Cumulative Return Over Training")
+    ax.set_title(title)
     ax.legend()
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -1175,6 +1178,18 @@ def generate_all_plots(
         )
     plot_learning_curves_tail(metrics, output_dir / "learning_curves_tail.png")
     plot_cumulative_return(metrics, output_dir / "cumulative_return.png", smoothing)
+    # Focused cumulative return: custom DQN variants + key heuristic benchmarks
+    focus_names = [k for k in metrics if k.startswith("custom_dqn")]
+    focus_names += [k for k in metrics if k in (
+        "heuristic_highest_degree", "heuristic_most_down_neighbors",
+        "heuristic_random_reboot", "heuristic_random_down",
+    )]
+    if focus_names:
+        plot_cumulative_return(
+            metrics, output_dir / "cumulative_return_focused.png", smoothing,
+            filter_names=focus_names,
+            title="Cumulative Return — DQN Variants vs Key Heuristics",
+        )
     plot_td_loss(metrics, output_dir / "td_loss.png")
     plot_reg_loss(metrics, output_dir / "reg_loss.png")
     plot_reg_contribution(metrics, output_dir / "reg_contribution.png")
