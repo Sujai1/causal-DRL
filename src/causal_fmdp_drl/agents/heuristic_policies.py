@@ -25,6 +25,13 @@ def random_down_reboot_policy(
     return int(rng.choice(down))
 
 
+def random_reboot_policy(
+    obs: np.ndarray, num_machines: int, rng: np.random.Generator, **kw
+) -> int:
+    """Reboot a uniformly random machine (regardless of status). Never no-ops."""
+    return int(rng.integers(num_machines))
+
+
 def highest_degree_down_policy(
     obs: np.ndarray,
     num_machines: int,

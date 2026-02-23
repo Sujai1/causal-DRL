@@ -33,6 +33,7 @@ from causal_fmdp_drl.agents.tabular.state_encoding import check_tractable
 from causal_fmdp_drl.agents.heuristic_runner import run_heuristic
 from causal_fmdp_drl.agents.heuristic_policies import (
     noop_policy,
+    random_reboot_policy,
     random_down_reboot_policy,
     highest_degree_down_policy,
     most_down_neighbors_policy,
@@ -48,6 +49,8 @@ def main():
     parser.add_argument("--num_machines", type=int, default=10)
     parser.add_argument("--topology", default="erdos_renyi")
     parser.add_argument("--er_prob", type=float, default=0.2)
+    parser.add_argument("--ba_m", type=int, default=2,
+                        help="Number of edges to attach from new node (Barabási-Albert topology)")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--timesteps", type=int, default=50_000)
     parser.add_argument("--horizon", type=int, default=100)
@@ -71,7 +74,8 @@ def main():
                                  "custom_dqn_noreg", "custom_dqn_noreg_ln",
                                  "custom_dqn_gradient_balanced",
                                  "tabular_q", "dyna_q",
-                                 "heuristic_noop", "heuristic_random_down",
+                                 "heuristic_noop", "heuristic_random_reboot",
+                                 "heuristic_random_down",
                                  "heuristic_highest_degree",
                                  "heuristic_most_down_neighbors",
                                  "heuristic_myopic_greedy"],
@@ -93,7 +97,7 @@ def main():
     # --- 1. Generate shared instance ---
     artifacts_dir = Path("artifacts/rddl/sysadmin")
     domain_path = artifacts_dir / "domain.rddl"
-    adj = generate_topology(args.num_machines, args.topology, args.seed, args.er_prob)
+    adj = generate_topology(args.num_machines, args.topology, args.seed, args.er_prob, args.ba_m)
     instance_path = write_sysadmin_instance(
         adj,
         f"{args.topology}_m{args.num_machines}_s{args.seed}",
@@ -187,6 +191,8 @@ def main():
     # Heuristic baselines
     if should_run("heuristic_noop"):
         baselines.append(("heuristic_noop", "No-Op"))
+    if should_run("heuristic_random_reboot"):
+        baselines.append(("heuristic_random_reboot", "Random Reboot (Any)"))
     if should_run("heuristic_random_down"):
         baselines.append(("heuristic_random_down", "Random Down Reboot"))
     if should_run("heuristic_highest_degree"):
@@ -311,6 +317,10 @@ def main():
             policy_map = {
                 "heuristic_noop": (noop_policy, {
                     "num_machines": args.num_machines,
+                }),
+                "heuristic_random_reboot": (random_reboot_policy, {
+                    "num_machines": args.num_machines,
+                    "rng": heuristic_rng,
                 }),
                 "heuristic_random_down": (random_down_reboot_policy, {
                     "num_machines": args.num_machines,

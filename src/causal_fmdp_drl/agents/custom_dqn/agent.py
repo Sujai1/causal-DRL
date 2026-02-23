@@ -98,6 +98,8 @@ class DQNAgent:
 
     def get_epsilon(self) -> float:
         """Linear epsilon decay."""
+        if self.config.eps_decay_steps == 0:
+            return 0.0
         progress = min(1.0, self.step_count / self.config.eps_decay_steps)
         return self.config.eps_start + progress * (self.config.eps_end - self.config.eps_start)
 

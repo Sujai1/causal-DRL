@@ -24,7 +24,8 @@ def main():
     instances_dir = artifacts_dir / "instances"
     instances_dir.mkdir(parents=True, exist_ok=True)
 
-    adj = generate_topology(m, topology, seed=seed, er_prob=er_prob)
+    ba_m = 2
+    adj = generate_topology(m, topology, seed=seed, er_prob=er_prob, ba_m=ba_m)
     instance_path = write_sysadmin_instance(
         adj, f"er_m{m}_p{er_prob}_s{seed}", instances_dir, horizon=H
     )

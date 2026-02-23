@@ -9,9 +9,10 @@ import numpy as np
 
 def generate_topology(
     num_machines: int,
-    topology: Literal["ring", "star", "erdos_renyi"],
+    topology: Literal["ring", "star", "erdos_renyi", "barabasi_albert"],
     seed: int = 0,
     er_prob: float = 0.1,
+    ba_m: int = 2,
 ) -> np.ndarray:
     """Generate adjacency matrix for machine connectivity.
 
@@ -25,6 +26,8 @@ def generate_topology(
         g = nx.star_graph(num_machines - 1)
     elif topology == "erdos_renyi":
         g = nx.erdos_renyi_graph(num_machines, er_prob, seed=seed)
+    elif topology == "barabasi_albert":
+        g = nx.barabasi_albert_graph(num_machines, ba_m, seed=seed)
     else:
         raise ValueError(f"Unknown topology: {topology}")
 

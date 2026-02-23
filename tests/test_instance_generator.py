@@ -47,6 +47,28 @@ class TestGenerateTopology:
         a2 = generate_topology(10, "erdos_renyi", seed=42, er_prob=0.2)
         np.testing.assert_array_equal(a1, a2)
 
+    def test_barabasi_albert_shape(self):
+        adj = generate_topology(10, "barabasi_albert", seed=42, ba_m=2)
+        assert adj.shape == (10, 10)
+
+    def test_barabasi_albert_symmetric(self):
+        adj = generate_topology(10, "barabasi_albert", seed=42, ba_m=2)
+        np.testing.assert_array_equal(adj, adj.T)
+
+    def test_barabasi_albert_no_self_loops(self):
+        adj = generate_topology(10, "barabasi_albert", seed=42, ba_m=2)
+        assert np.diag(adj).sum() == 0
+
+    def test_barabasi_albert_deterministic(self):
+        a1 = generate_topology(10, "barabasi_albert", seed=42, ba_m=2)
+        a2 = generate_topology(10, "barabasi_albert", seed=42, ba_m=2)
+        np.testing.assert_array_equal(a1, a2)
+
+    def test_barabasi_albert_heterogeneous_degrees(self):
+        adj = generate_topology(20, "barabasi_albert", seed=0, ba_m=2)
+        degrees = adj.sum(axis=1)
+        assert degrees.max() > degrees.min(), "BA graph should have heterogeneous degrees"
+
     def test_unknown_topology_raises(self):
         with pytest.raises(ValueError, match="Unknown topology"):
             generate_topology(5, "unknown")

@@ -93,6 +93,7 @@ BASELINE_COLORS = {
     "tabular_q": "#9467bd",
     "dyna_q": "#8c564b",
     "heuristic_noop": "#7f7f7f",
+    "heuristic_random_reboot": "#17becf",
     "heuristic_random_down": "#8c564b",
     "heuristic_highest_degree": "#9467bd",
     "heuristic_most_down_neighbors": "#e377c2",
@@ -145,6 +146,7 @@ BASELINE_LABELS = {
     "tabular_q": "Tabular Q-Learning",
     "dyna_q": "Dyna-Q",
     "heuristic_noop": "No-Op",
+    "heuristic_random_reboot": "Random Reboot (Any)",
     "heuristic_random_down": "Random Down Reboot",
     "heuristic_highest_degree": "Highest-Degree Down",
     "heuristic_most_down_neighbors": "Most Down Neighbors",
@@ -222,9 +224,12 @@ def _get_variant_color(name: str, idx: dict) -> str:
 
 
 def plot_learning_curves(
-    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 10
+    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 20,
+    filter_names: list[str] | None = None, title: str = "Learning Curves",
 ) -> None:
-    """Episode return vs timestep for all baselines."""
+    """Episode return vs timestep for all (or filtered) baselines."""
+    if filter_names is not None:
+        metrics = {k: v for k, v in metrics.items() if k in filter_names}
     fig, ax = plt.subplots(figsize=(10, 6))
     sorted_names = sorted(metrics.keys())
     num_curves = len(sorted_names)
@@ -240,7 +245,129 @@ def plot_learning_curves(
         ax.plot(timesteps, returns, color=color, alpha=0.15)
     ax.set_xlabel("Timestep")
     ax.set_ylabel("Episode Return")
-    ax.set_title("Learning Curves")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_learning_curves_tail(
+    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 10,
+    tail_fraction: float = 0.20,
+) -> None:
+    """Episode return vs timestep for the last tail_fraction of training.
+
+    Reveals late-training trends invisible in the full learning curve plot.
+    Uses a smaller smoothing window since there are fewer data points.
+    """
+    # Determine the global max timestep across all baselines
+    global_max_ts = max(
+        r["timestep"] for records in metrics.values() for r in records
+    )
+    cutoff = global_max_ts * (1 - tail_fraction)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sorted_names = sorted(metrics.keys())
+    num_curves = len(sorted_names)
+    cidx = {}
+    for curve_idx, name in enumerate(sorted_names):
+        tail_records = [r for r in metrics[name] if r["timestep"] >= cutoff]
+        if not tail_records:
+            continue
+        timesteps = [r["timestep"] for r in tail_records]
+        returns = [r["episode_return"] for r in tail_records]
+        smoothed = _rolling_mean(returns, smoothing)
+        smoothed_jittered = _add_jitter(smoothed, curve_idx, num_curves)
+        color = _get_variant_color(name, cidx)
+        ax.plot(timesteps, smoothed_jittered, label=_label(name), color=color, alpha=0.9)
+        ax.plot(timesteps, returns, color=color, alpha=0.15)
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel("Episode Return")
+    ax.set_title("Learning Curves (Last 20% of Training)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def _find_reg_settling_timestep(
+    metrics: dict[str, list[dict]], threshold: float = 0.95,
+) -> int | None:
+    """Find timestep where cumulative reg_contribution reaches *threshold* of total.
+
+    Scans all baselines in *metrics* that have ``reg_contribution`` data and
+    returns the **max** settling timestep across them, so the plot covers the
+    full active regularization window for every method.
+    """
+    settling_timesteps: list[int] = []
+    for records in metrics.values():
+        contributions = [
+            (r["timestep"], r.get("reg_contribution", 0.0))
+            for r in records if r.get("reg_contribution") is not None
+        ]
+        if not contributions:
+            continue
+        total = sum(c for _, c in contributions)
+        if total <= 0:
+            continue
+        cumsum = 0.0
+        for ts, c in contributions:
+            cumsum += c
+            if cumsum >= threshold * total:
+                settling_timesteps.append(ts)
+                break
+    return max(settling_timesteps) if settling_timesteps else None
+
+
+def plot_learning_curves_head(
+    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 5,
+    head_fraction: float = 0.20,
+    filter_names: list[str] | None = None,
+    title: str | None = None,
+) -> None:
+    """Episode return vs timestep through the regularization active window.
+
+    Uses a data-driven cutoff based on when cumulative ``reg_contribution``
+    reaches 95% of its total (+ 20% padding).  Falls back to *head_fraction*
+    of total training when no regularization data is available.
+    """
+    if filter_names is not None:
+        metrics = {k: v for k, v in metrics.items() if k in filter_names}
+    global_max_ts = max(
+        r["timestep"] for records in metrics.values() for r in records
+    )
+
+    settling_ts = _find_reg_settling_timestep(metrics)
+    if settling_ts is not None:
+        cutoff = settling_ts * 1.2  # 20% padding beyond settling point
+        cutoff_label = f"t<{int(cutoff):,}"
+        default_title = f"Learning Curves — Custom DQN (Through Reg Active Window, {cutoff_label})"
+    else:
+        cutoff = global_max_ts * head_fraction
+        pct = int(head_fraction * 100)
+        default_title = f"Learning Curves (First {pct}% of Training)"
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sorted_names = sorted(metrics.keys())
+    num_curves = len(sorted_names)
+    cidx = {}
+    for curve_idx, name in enumerate(sorted_names):
+        head_records = [r for r in metrics[name] if r["timestep"] <= cutoff]
+        if not head_records:
+            continue
+        timesteps = [r["timestep"] for r in head_records]
+        returns = [r["episode_return"] for r in head_records]
+        smoothed = _rolling_mean(returns, smoothing)
+        smoothed_jittered = _add_jitter(smoothed, curve_idx, num_curves)
+        color = _get_variant_color(name, cidx)
+        ax.plot(timesteps, smoothed_jittered, label=_label(name), color=color, alpha=0.9)
+        ax.plot(timesteps, returns, color=color, alpha=0.15)
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel("Episode Return")
+    ax.set_title(title or default_title)
     ax.legend()
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -614,6 +741,41 @@ def plot_wall_time(run_config: dict, output_path: Path) -> None:
     ax.set_ylabel("Wall Time (seconds)")
     ax.set_title("Training Wall-Clock Time")
     ax.grid(True, alpha=0.3, axis="y")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_cumulative_return(
+    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 10
+) -> None:
+    """Cumulative episode return (AUC) over timesteps for all baselines.
+
+    At each episode end, the y-value is the running sum of episode returns
+    up to that point. This shows how total reward accumulates over training.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sorted_names = sorted(metrics.keys())
+    cidx = {}
+    plotted = False
+    for name in sorted_names:
+        records = metrics[name]
+        timesteps = [r["timestep"] for r in records]
+        returns = [r["episode_return"] for r in records]
+        if not returns:
+            continue
+        cumulative = np.cumsum(returns)
+        color = _get_variant_color(name, cidx)
+        ax.plot(timesteps, cumulative, label=_label(name), color=color, alpha=0.9)
+        plotted = True
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel("Cumulative Episode Return")
+    ax.set_title("Cumulative Return Over Training")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
     plt.close(fig)
@@ -1001,6 +1163,18 @@ def generate_all_plots(
     print(f"Found baselines: {', '.join(metrics.keys())}")
 
     plot_learning_curves(metrics, output_dir / "learning_curves.png", smoothing)
+    custom_dqn_names = [k for k in metrics if k.startswith("custom_dqn")]
+    if custom_dqn_names:
+        plot_learning_curves(
+            metrics, output_dir / "learning_curves_custom_dqn.png", smoothing,
+            filter_names=custom_dqn_names, title="Learning Curves (Custom DQN Variants)",
+        )
+        plot_learning_curves_head(
+            metrics, output_dir / "learning_curves_custom_dqn_head.png",
+            smoothing=5, head_fraction=0.20, filter_names=custom_dqn_names,
+        )
+    plot_learning_curves_tail(metrics, output_dir / "learning_curves_tail.png")
+    plot_cumulative_return(metrics, output_dir / "cumulative_return.png", smoothing)
     plot_td_loss(metrics, output_dir / "td_loss.png")
     plot_reg_loss(metrics, output_dir / "reg_loss.png")
     plot_reg_contribution(metrics, output_dir / "reg_contribution.png")
