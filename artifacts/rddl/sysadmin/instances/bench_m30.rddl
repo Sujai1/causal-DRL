@@ -1,7 +1,7 @@
-non-fluents nf_barabasi_albert_m20_s3 {
+non-fluents nf_bench_m30 {
 	domain = sysadmin_mdp;
 	objects {
-		computer : {c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20};
+		computer : {c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21,c22,c23,c24,c25,c26,c27,c28,c29,c30};
 	};
 	non-fluents {
 		CONNECTED(c1,c2);
@@ -13,11 +13,16 @@ non-fluents nf_barabasi_albert_m20_s3 {
 		CONNECTED(c1,c14);
 		CONNECTED(c1,c15);
 		CONNECTED(c1,c16);
+		CONNECTED(c1,c23);
+		CONNECTED(c1,c26);
+		CONNECTED(c1,c29);
 		CONNECTED(c2,c1);
 		CONNECTED(c2,c4);
 		CONNECTED(c2,c17);
+		CONNECTED(c2,c21);
 		CONNECTED(c3,c1);
 		CONNECTED(c3,c19);
+		CONNECTED(c3,c28);
 		CONNECTED(c4,c1);
 		CONNECTED(c4,c2);
 		CONNECTED(c4,c5);
@@ -30,6 +35,7 @@ non-fluents nf_barabasi_albert_m20_s3 {
 		CONNECTED(c5,c1);
 		CONNECTED(c5,c4);
 		CONNECTED(c5,c16);
+		CONNECTED(c5,c27);
 		CONNECTED(c6,c1);
 		CONNECTED(c6,c4);
 		CONNECTED(c6,c7);
@@ -37,6 +43,8 @@ non-fluents nf_barabasi_albert_m20_s3 {
 		CONNECTED(c6,c10);
 		CONNECTED(c6,c12);
 		CONNECTED(c6,c17);
+		CONNECTED(c6,c22);
+		CONNECTED(c6,c23);
 		CONNECTED(c7,c1);
 		CONNECTED(c7,c6);
 		CONNECTED(c7,c18);
@@ -45,9 +53,11 @@ non-fluents nf_barabasi_albert_m20_s3 {
 		CONNECTED(c8,c9);
 		CONNECTED(c8,c11);
 		CONNECTED(c8,c13);
+		CONNECTED(c8,c25);
 		CONNECTED(c9,c4);
 		CONNECTED(c9,c8);
 		CONNECTED(c9,c10);
+		CONNECTED(c9,c24);
 		CONNECTED(c10,c6);
 		CONNECTED(c10,c9);
 		CONNECTED(c10,c11);
@@ -56,34 +66,63 @@ non-fluents nf_barabasi_albert_m20_s3 {
 		CONNECTED(c11,c19);
 		CONNECTED(c12,c4);
 		CONNECTED(c12,c6);
+		CONNECTED(c12,c27);
 		CONNECTED(c13,c4);
 		CONNECTED(c13,c8);
 		CONNECTED(c13,c15);
 		CONNECTED(c13,c18);
 		CONNECTED(c13,c20);
+		CONNECTED(c13,c28);
+		CONNECTED(c13,c30);
 		CONNECTED(c14,c1);
 		CONNECTED(c14,c4);
+		CONNECTED(c14,c22);
 		CONNECTED(c15,c1);
 		CONNECTED(c15,c13);
+		CONNECTED(c15,c21);
+		CONNECTED(c15,c29);
 		CONNECTED(c16,c1);
 		CONNECTED(c16,c5);
 		CONNECTED(c16,c20);
+		CONNECTED(c16,c26);
 		CONNECTED(c17,c2);
 		CONNECTED(c17,c6);
 		CONNECTED(c18,c7);
 		CONNECTED(c18,c13);
+		CONNECTED(c18,c24);
 		CONNECTED(c19,c3);
 		CONNECTED(c19,c11);
 		CONNECTED(c20,c13);
 		CONNECTED(c20,c16);
-		REBOOT-PENALTY = 1.0;
-		REBOOT-PROB = 0.15;
+		CONNECTED(c21,c2);
+		CONNECTED(c21,c15);
+		CONNECTED(c21,c30);
+		CONNECTED(c22,c6);
+		CONNECTED(c22,c14);
+		CONNECTED(c23,c1);
+		CONNECTED(c23,c6);
+		CONNECTED(c24,c9);
+		CONNECTED(c24,c18);
+		CONNECTED(c24,c25);
+		CONNECTED(c25,c8);
+		CONNECTED(c25,c24);
+		CONNECTED(c26,c1);
+		CONNECTED(c26,c16);
+		CONNECTED(c27,c5);
+		CONNECTED(c27,c12);
+		CONNECTED(c28,c3);
+		CONNECTED(c28,c13);
+		CONNECTED(c29,c1);
+		CONNECTED(c29,c15);
+		CONNECTED(c30,c13);
+		CONNECTED(c30,c21);
+		REBOOT-PROB = 0.02;
 	};
 }
 
-instance barabasi_albert_m20_s3 {
+instance bench_m30 {
 	domain = sysadmin_mdp;
-	non-fluents = nf_barabasi_albert_m20_s3;
+	non-fluents = nf_bench_m30;
 	init-state {
 		running(c1);
 		running(c2);
@@ -105,9 +144,19 @@ instance barabasi_albert_m20_s3 {
 		running(c18);
 		running(c19);
 		running(c20);
+		running(c21);
+		running(c22);
+		running(c23);
+		running(c24);
+		running(c25);
+		running(c26);
+		running(c27);
+		running(c28);
+		running(c29);
+		running(c30);
 	};
 
 	max-nondef-actions = 1;
-	horizon  = 100;
+	horizon  = 30;
 	discount = 0.95;
 }

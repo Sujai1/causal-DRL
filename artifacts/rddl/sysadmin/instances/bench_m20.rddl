@@ -1,4 +1,4 @@
-non-fluents nf_barabasi_albert_m20_s3 {
+non-fluents nf_bench_m20 {
 	domain = sysadmin_mdp;
 	objects {
 		computer : {c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20};
@@ -76,14 +76,13 @@ non-fluents nf_barabasi_albert_m20_s3 {
 		CONNECTED(c19,c11);
 		CONNECTED(c20,c13);
 		CONNECTED(c20,c16);
-		REBOOT-PENALTY = 1.0;
-		REBOOT-PROB = 0.15;
+		REBOOT-PROB = 0.02;
 	};
 }
 
-instance barabasi_albert_m20_s3 {
+instance bench_m20 {
 	domain = sysadmin_mdp;
-	non-fluents = nf_barabasi_albert_m20_s3;
+	non-fluents = nf_bench_m20;
 	init-state {
 		running(c1);
 		running(c2);
@@ -108,6 +107,6 @@ instance barabasi_albert_m20_s3 {
 	};
 
 	max-nondef-actions = 1;
-	horizon  = 100;
+	horizon  = 30;
 	discount = 0.95;
 }

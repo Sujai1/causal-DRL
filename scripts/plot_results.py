@@ -798,7 +798,7 @@ def plot_sample_efficiency(
         timesteps = [r["timestep"] for r in records]
         if not returns:
             continue
-        auc = float(np.trapezoid(returns, timesteps))
+        auc = float(np.trapz(returns, timesteps))
         last_10_mean = float(np.mean(returns[-10:])) if len(returns) >= 10 else float(np.mean(returns))
         stats[name] = {"auc": auc, "last_10_mean": last_10_mean, "returns": returns, "timesteps": timesteps}
 
@@ -1045,7 +1045,7 @@ def compute_auc_rankings(metrics: dict[str, list[dict]]) -> list[dict]:
         timesteps = [r["timestep"] for r in records]
         if not returns:
             continue
-        auc = float(np.trapezoid(returns, timesteps))
+        auc = float(np.trapz(returns, timesteps))
         final_mean = float(np.mean(returns[-10:])) if len(returns) >= 10 else float(np.mean(returns))
         rankings.append({
             "name": name,
@@ -1119,7 +1119,7 @@ def write_summary(
             continue
         last_10_mean = float(np.mean(returns[-10:])) if len(returns) >= 10 else float(np.mean(returns))
         all_last_means.append(last_10_mean)
-        auc = float(np.trapezoid(returns, timesteps))
+        auc = float(np.trapz(returns, timesteps))
         summary[name] = {
             "final_mean_return": last_10_mean,
             "auc": auc,

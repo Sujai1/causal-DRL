@@ -6,10 +6,9 @@ import sys
 import time
 
 
-FIXED_ARGS = [
+DEFAULT_ARGS = [
     "--num_machines", "10",
     "--topology", "barabasi_albert",
-    "--ba_m", "2",
     "--timesteps", "200000",
     "--horizon", "100",
     "--gamma", "0.99",
@@ -36,13 +35,15 @@ def main():
     )
     parser.add_argument("--start_seed", type=int, default=13)
     parser.add_argument("--num_seeds", type=int, default=12)
+    parser.add_argument("--ba_m", type=int, default=2,
+                        help="Barabási-Albert attachment parameter (default: 2)")
     args = parser.parse_args()
 
     seeds = list(range(args.start_seed, args.start_seed + args.num_seeds))
     total = len(seeds)
     sweep_start = time.time()
 
-    print(f"Running {total} seeds: {seeds[0]}..{seeds[-1]}")
+    print(f"Running {total} seeds: {seeds[0]}..{seeds[-1]}, ba_m={args.ba_m}")
     print(f"Estimated time: ~{total * 10} minutes")
     print()
 
@@ -50,7 +51,8 @@ def main():
         cmd = [
             sys.executable, "scripts/run_all_baselines.py",
             "--seed", str(seed),
-            *FIXED_ARGS,
+            "--ba_m", str(args.ba_m),
+            *DEFAULT_ARGS,
         ]
         print(f"{'='*60}")
         print(f"Seed {seed} ({i+1}/{total})")

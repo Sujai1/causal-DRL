@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import numpy as np
-from pyRDDLGym_symbolic.core.visualizer import RDDL2Graph
 
 from .causal_graph import CausalGraph
 
@@ -28,6 +27,8 @@ def extract_causal_graph(
     Returns:
         CausalGraph with state variable names and adjacency matrix.
     """
+    from pyRDDLGym_symbolic.core.visualizer import RDDL2Graph
+
     r2g = RDDL2Graph(
         domain=domain_path.stem,
         domain_file=str(domain_path),

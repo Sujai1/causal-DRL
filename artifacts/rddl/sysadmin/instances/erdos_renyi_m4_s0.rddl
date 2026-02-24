@@ -1,0 +1,24 @@
+non-fluents nf_erdos_renyi_m4_s0 {
+	domain = sysadmin_mdp;
+	objects {
+		computer : {c1,c2,c3,c4};
+	};
+	non-fluents {
+
+	};
+}
+
+instance erdos_renyi_m4_s0 {
+	domain = sysadmin_mdp;
+	non-fluents = nf_erdos_renyi_m4_s0;
+	init-state {
+		running(c1);
+		running(c2);
+		running(c3);
+		running(c4);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 20;
+	discount = 0.95;
+}
