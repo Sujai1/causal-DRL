@@ -3,12 +3,13 @@
 import json
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
 from ..envs.make_env import make_sysadmin_env
+from ..graphs.causal_graph import CausalGraph
 from ..logging.jsonl_logger import JSONLLogger
 
 
@@ -44,6 +45,7 @@ def train_sb3(
     total_timesteps: int = 50_000,
     max_episode_steps: int = 100,
     seed: int = 0,
+    graph: Optional[CausalGraph] = None,
     **algo_kwargs,
 ) -> None:
     """Train SB3 agent and log metrics."""
@@ -51,7 +53,8 @@ def train_sb3(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     env, graph = make_sysadmin_env(
-        domain_path, instance_path, max_episode_steps=max_episode_steps, seed=seed
+        domain_path, instance_path, max_episode_steps=max_episode_steps, seed=seed,
+        graph=graph,
     )
 
     with open(output_dir / "graph.json", "w") as f:

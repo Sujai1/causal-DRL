@@ -16,8 +16,17 @@ def make_sysadmin_env(
     instance_path: Path,
     max_episode_steps: int = 100,
     seed: Optional[int] = None,
+    graph: Optional[CausalGraph] = None,
 ) -> Tuple[gym.Env, CausalGraph]:
     """Create wrapped SysAdmin environment and extract causal graph.
+
+    Args:
+        domain_path: Path to RDDL domain file.
+        instance_path: Path to RDDL instance file.
+        max_episode_steps: TimeLimit wrapper horizon.
+        seed: Random seed for env reset.
+        graph: Pre-computed CausalGraph. If None, extracts via XADD
+            (slow; prefer passing a pre-built graph).
 
     Returns:
         env: Gymnasium env with flat obs, discrete actions, time limit.
@@ -27,7 +36,8 @@ def make_sysadmin_env(
         domain=str(domain_path), instance=str(instance_path)
     )
 
-    graph = extract_causal_graph(domain_path, instance_path)
+    if graph is None:
+        graph = extract_causal_graph(domain_path, instance_path)
 
     env = FlattenObsWrapper(raw_env)
     env = SingleRebootActionWrapper(env)

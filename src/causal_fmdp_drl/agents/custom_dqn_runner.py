@@ -9,6 +9,7 @@ import numpy as np
 import torch
 
 from ..envs.make_env import make_sysadmin_env
+from ..graphs.causal_graph import CausalGraph
 from ..logging.jsonl_logger import JSONLLogger
 from .custom_dqn.agent import DQNAgent, DQNConfig
 
@@ -35,6 +36,7 @@ def train_custom_dqn(
     infer_alpha: float = 0.01,
     use_layernorm: bool = False,
     eps_decay_frac: float = 1.0,
+    graph: Optional[CausalGraph] = None,
 ) -> None:
     """Train custom DQN agent and log metrics.
 
@@ -67,7 +69,7 @@ def train_custom_dqn(
 
     env, graph = make_sysadmin_env(
         domain_path, instance_path,
-        max_episode_steps=max_episode_steps, seed=seed,
+        max_episode_steps=max_episode_steps, seed=seed, graph=graph,
     )
 
     with open(output_dir / "graph.json", "w") as f:

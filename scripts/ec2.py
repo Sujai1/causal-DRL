@@ -177,7 +177,11 @@ def cmd_run(args: argparse.Namespace) -> None:
     if args.extra_args:
         baseline_flags = " ".join(args.extra_args)
     else:
-        baseline_flags = " ".join(DEFAULT_BASELINE_FLAGS)
+        flags = list(DEFAULT_BASELINE_FLAGS)
+        if args.timesteps is not None:
+            idx = flags.index("--timesteps")
+            flags[idx + 1] = str(args.timesteps)
+        baseline_flags = " ".join(flags)
 
     script_body = _build_parallel_script(seeds, parallel, ba_m, num_machines, baseline_flags)
 
@@ -210,7 +214,7 @@ def cmd_status(args: argparse.Namespace) -> None:
     # Count completed experiments
     result = _ssh(
         host,
-        f"find {REMOTE_DIR}/outputs -name 'summary.json' -path '*comparison_m10*' 2>/dev/null | wc -l",
+        f"find {REMOTE_DIR}/outputs -name 'summary.json' -path '*_m10*' 2>/dev/null | wc -l",
         capture=True,
     )
     completed = result.stdout.strip()
@@ -236,7 +240,7 @@ def cmd_fetch(args: argparse.Namespace) -> None:
         "rsync", "-avz",
         "-e", f"ssh {' '.join(SSH_OPTS)}",
         "--include", "*/",
-        "--include", "*comparison_m10*/**",
+        "--include", "*_m10*/**",
         "--exclude", "*",
         src, dst,
     ])
@@ -355,6 +359,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="BA attachment parameter (default: 2)")
     p.add_argument("--num_machines", type=int, default=10,
                    help="Number of machines in SysAdmin (default: 10)")
+    p.add_argument("--timesteps", type=int, default=None,
+                   help="Override timesteps in DEFAULT_BASELINE_FLAGS")
     p.add_argument("extra_args", nargs="*",
                    help="Extra args for run_all_baselines.py (after '--')")
 

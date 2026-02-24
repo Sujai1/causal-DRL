@@ -3,9 +3,10 @@
 import json
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from ..envs.make_env import make_sysadmin_env
+from ..graphs.causal_graph import CausalGraph
 from ..logging.jsonl_logger import JSONLLogger
 
 
@@ -19,6 +20,7 @@ def run_heuristic(
     max_episode_steps: int = 100,
     seed: int = 0,
     print_every: int = 10,
+    graph: Optional[CausalGraph] = None,
 ) -> None:
     """Run a heuristic policy and log episode metrics.
 
@@ -38,7 +40,7 @@ def run_heuristic(
 
     env, graph = make_sysadmin_env(
         domain_path, instance_path,
-        max_episode_steps=max_episode_steps, seed=seed,
+        max_episode_steps=max_episode_steps, seed=seed, graph=graph,
     )
 
     with open(output_dir / "graph.json", "w") as f:

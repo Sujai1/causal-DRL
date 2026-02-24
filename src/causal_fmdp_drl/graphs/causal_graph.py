@@ -1,5 +1,7 @@
 """Causal graph representation extracted from a Dynamic Bayesian Network."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import List
 
@@ -18,6 +20,26 @@ class CausalGraph:
 
     state_vars: List[str]
     adjacency: np.ndarray
+
+    @classmethod
+    def from_adjacency(cls, network_adj: np.ndarray, num_machines: int) -> CausalGraph:
+        """Build CausalGraph from the network adjacency matrix.
+
+        The causal (DBN) adjacency adds self-loops to the network topology:
+        each machine's next-state depends on its own current state plus
+        its network neighbours' states.
+
+        Args:
+            network_adj: (num_machines, num_machines) binary adjacency matrix
+                of the network topology (no self-loops expected).
+            num_machines: Number of machines (used for variable naming).
+
+        Returns:
+            CausalGraph with state_vars and causal adjacency.
+        """
+        state_vars = [f"running___c{i+1}" for i in range(num_machines)]
+        causal_adj = np.clip(network_adj + np.eye(num_machines), 0, 1).astype(np.float64)
+        return cls(state_vars=state_vars, adjacency=causal_adj)
 
     @property
     def num_vars(self) -> int:

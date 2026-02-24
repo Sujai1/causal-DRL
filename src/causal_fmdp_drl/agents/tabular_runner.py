@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 
 from ..envs.make_env import make_sysadmin_env
+from ..graphs.causal_graph import CausalGraph
 from ..logging.jsonl_logger import JSONLLogger
 from .tabular.state_encoding import obs_to_index, check_tractable
 from .tabular.q_learning import TabularQLearning, TabularQConfig
@@ -107,6 +108,7 @@ def train_tabular_q(
     print_every: int = 10,
     eps_decay_frac: float = 0.5,
     gamma: float = 0.95,
+    graph: Optional[CausalGraph] = None,
 ) -> None:
     """Train tabular Q-learning agent and log metrics.
 
@@ -121,11 +123,13 @@ def train_tabular_q(
         print_every: Print progress every N episodes (0 = silent).
         eps_decay_frac: Fraction of total_timesteps over which to decay epsilon.
         gamma: Discount factor.
+        graph: Pre-computed CausalGraph (skips XADD extraction if provided).
     """
     np.random.seed(seed)
 
     env, graph = make_sysadmin_env(
-        domain_path, instance_path, max_episode_steps=max_episode_steps, seed=seed
+        domain_path, instance_path, max_episode_steps=max_episode_steps, seed=seed,
+        graph=graph,
     )
 
     num_states = 2 ** env.observation_space.shape[0]
@@ -166,6 +170,7 @@ def train_dyna_q(
     print_every: int = 10,
     eps_decay_frac: float = 0.5,
     gamma: float = 0.95,
+    graph: Optional[CausalGraph] = None,
 ) -> None:
     """Train Dyna-Q agent and log metrics.
 
@@ -181,11 +186,13 @@ def train_dyna_q(
         print_every: Print progress every N episodes (0 = silent).
         eps_decay_frac: Fraction of total_timesteps over which to decay epsilon.
         gamma: Discount factor.
+        graph: Pre-computed CausalGraph (skips XADD extraction if provided).
     """
     np.random.seed(seed)
 
     env, graph = make_sysadmin_env(
-        domain_path, instance_path, max_episode_steps=max_episode_steps, seed=seed
+        domain_path, instance_path, max_episode_steps=max_episode_steps, seed=seed,
+        graph=graph,
     )
 
     num_states = 2 ** env.observation_space.shape[0]

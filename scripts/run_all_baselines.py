@@ -24,7 +24,7 @@ from causal_fmdp_drl.envs.rddl.instance_generator import (
     generate_topology,
     write_sysadmin_instance,
 )
-from causal_fmdp_drl.graphs.extract_dbn import extract_causal_graph
+from causal_fmdp_drl.graphs.causal_graph import CausalGraph
 from causal_fmdp_drl.agents.sb3_runner import train_sb3
 from causal_fmdp_drl.agents.custom_dqn_runner import train_custom_dqn
 from causal_fmdp_drl.agents.custom_dqn.agent import DQNConfig
@@ -107,12 +107,12 @@ def main():
         reboot_prob=args.reboot_prob,
     )
 
-    # --- 2. Extract shared causal graph ---
-    graph = extract_causal_graph(domain_path, instance_path)
+    # --- 2. Build shared causal graph from adjacency (no XADD needed) ---
+    graph = CausalGraph.from_adjacency(adj, args.num_machines)
 
     # --- 3. Create output directory ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_dir = Path("outputs") / f"{timestamp}_comparison_m{args.num_machines}"
+    base_dir = Path("outputs") / f"{timestamp}_s{args.seed}_m{args.num_machines}"
     base_dir.mkdir(parents=True, exist_ok=True)
 
     # Save shared run config (baselines list will be updated after running)
@@ -222,6 +222,7 @@ def main():
                 total_timesteps=args.timesteps,
                 max_episode_steps=args.horizon,
                 seed=args.seed,
+                graph=graph,
                 policy_kwargs=sb3_policy_kwargs,
                 gamma=args.gamma,
             )
@@ -234,6 +235,7 @@ def main():
                 total_timesteps=args.timesteps,
                 max_episode_steps=args.horizon,
                 seed=args.seed,
+                graph=graph,
                 policy_kwargs=sb3_policy_kwargs,
                 gamma=args.gamma,
             )
@@ -250,6 +252,7 @@ def main():
                 gamma=args.gamma,
                 use_layernorm=False,
                 eps_decay_frac=args.eps_decay_frac,
+                graph=graph,
             )
         elif key == "custom_dqn_noreg_ln":
             train_custom_dqn(
@@ -264,6 +267,7 @@ def main():
                 gamma=args.gamma,
                 use_layernorm=True,
                 eps_decay_frac=args.eps_decay_frac,
+                graph=graph,
             )
         elif key.startswith("custom_dqn_gradient_balanced"):
             k_target = int(key.split("_k")[-1])
@@ -284,6 +288,7 @@ def main():
                 gamma=args.gamma,
                 use_layernorm=True,
                 eps_decay_frac=args.eps_decay_frac,
+                graph=graph,
             )
         elif key == "tabular_q":
             train_tabular_q(
@@ -295,6 +300,7 @@ def main():
                 seed=args.seed,
                 eps_decay_frac=args.eps_decay_frac,
                 gamma=args.gamma,
+                graph=graph,
             )
         elif key == "dyna_q":
             train_dyna_q(
@@ -307,6 +313,7 @@ def main():
                 planning_steps=args.planning_steps,
                 eps_decay_frac=args.eps_decay_frac,
                 gamma=args.gamma,
+                graph=graph,
             )
         elif key.startswith("heuristic_"):
             import numpy as np
@@ -353,6 +360,7 @@ def main():
                 total_timesteps=args.timesteps,
                 max_episode_steps=args.horizon,
                 seed=args.seed,
+                graph=graph,
             )
 
         wall_times[key] = time.time() - t0
