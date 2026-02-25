@@ -119,6 +119,13 @@ def train_custom_dqn(
     train_start = time.time()
     episode_start = time.time()
 
+    # MC value approximation error tracking
+    with torch.no_grad():
+        obs_t = torch.from_numpy(obs).float().unsqueeze(0).to(dqn_config.device)
+        initial_q = agent.q_net(obs_t).max(dim=1)[0].item()
+    discounted_return = 0.0
+    discount_power = 1.0
+
     for t in range(total_timesteps):
         action = agent.select_action(obs)
         next_obs, reward, terminated, truncated, _ = env.step(action)
@@ -126,6 +133,8 @@ def train_custom_dqn(
 
         losses = agent.train_step(obs, action, reward, next_obs, float(done))
         episode_return += reward
+        discounted_return += discount_power * reward
+        discount_power *= gamma
 
         if done:
             episode_count += 1
@@ -135,6 +144,9 @@ def train_custom_dqn(
                 "timestep": t,
                 "episode": episode_count,
                 "episode_return": episode_return,
+                "value_error": abs(initial_q - discounted_return),
+                "initial_q_value": initial_q,
+                "discounted_return": discounted_return,
                 "episode_wall_time": now - episode_start,
                 "cumulative_wall_time": now - train_start,
                 **losses,
@@ -159,6 +171,13 @@ def train_custom_dqn(
             obs, _ = env.reset()
             episode_return = 0.0
             episode_start = time.time()
+
+            # MC value approximation error tracking for new episode
+            with torch.no_grad():
+                obs_t = torch.from_numpy(obs).float().unsqueeze(0).to(dqn_config.device)
+                initial_q = agent.q_net(obs_t).max(dim=1)[0].item()
+            discounted_return = 0.0
+            discount_power = 1.0
         else:
             obs = next_obs
 

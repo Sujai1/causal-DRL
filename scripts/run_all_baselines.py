@@ -28,6 +28,8 @@ from causal_fmdp_drl.graphs.causal_graph import CausalGraph
 from causal_fmdp_drl.agents.sb3_runner import train_sb3
 from causal_fmdp_drl.agents.custom_dqn_runner import train_custom_dqn
 from causal_fmdp_drl.agents.custom_dqn.agent import DQNConfig
+from causal_fmdp_drl.agents.custom_ppo_runner import train_custom_ppo
+from causal_fmdp_drl.agents.custom_ppo.agent import PPOConfig
 from causal_fmdp_drl.agents.tabular_runner import train_tabular_q, train_dyna_q
 from causal_fmdp_drl.agents.tabular.state_encoding import check_tractable
 from causal_fmdp_drl.agents.heuristic_runner import run_heuristic
@@ -73,6 +75,7 @@ def main():
                         choices=["sb3_ppo", "sb3_dqn",
                                  "custom_dqn_noreg", "custom_dqn_noreg_ln",
                                  "custom_dqn_gradient_balanced",
+                                 "custom_ppo_noreg", "custom_ppo_noreg_ln",
                                  "tabular_q", "dyna_q",
                                  "heuristic_noop", "heuristic_random_reboot",
                                  "heuristic_random_down",
@@ -172,6 +175,14 @@ def main():
     if should_run("custom_dqn_noreg_ln"):
         baselines.append(("custom_dqn_noreg_ln", "DQN + LN (no reg)"))
 
+    # Custom PPO (no reg, no LN) — vanilla reference
+    if should_run("custom_ppo_noreg"):
+        baselines.append(("custom_ppo_noreg", "Custom PPO (no reg)"))
+
+    # Custom PPO + LN (no reg)
+    if should_run("custom_ppo_noreg_ln"):
+        baselines.append(("custom_ppo_noreg_ln", "PPO + LN (no reg)"))
+
     # Gradient-balanced + LN baselines (one per k_target)
     if should_run("custom_dqn_gradient_balanced"):
         k_values = set(args.k_targets) if args.k_targets else {graph.k_global}
@@ -269,9 +280,35 @@ def main():
                 eps_decay_frac=args.eps_decay_frac,
                 graph=graph,
             )
+        elif key == "custom_ppo_noreg":
+            train_custom_ppo(
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
+                ppo_config=PPOConfig(hidden_dim=args.hidden_dim),
+                gamma=args.gamma,
+                use_layernorm=False,
+                graph=graph,
+            )
+        elif key == "custom_ppo_noreg_ln":
+            train_custom_ppo(
+                domain_path=domain_path,
+                instance_path=instance_path,
+                output_dir=output_dir,
+                total_timesteps=args.timesteps,
+                max_episode_steps=args.horizon,
+                seed=args.seed,
+                ppo_config=PPOConfig(hidden_dim=args.hidden_dim),
+                gamma=args.gamma,
+                use_layernorm=True,
+                graph=graph,
+            )
         elif key.startswith("custom_dqn_gradient_balanced"):
             k_target = int(key.split("_k")[-1])
-            reg_warmup = int(args.timesteps * args.reg_warmup_frac)
+            reg_warmup = int(args.timesteps * args.reg_warmup_frac) or 1  # 1 = immediate (0 triggers default fallback)
             train_custom_dqn(
                 domain_path=domain_path,
                 instance_path=instance_path,

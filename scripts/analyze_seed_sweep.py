@@ -168,7 +168,7 @@ def collect_experiments(
     seen_seeds = {}
 
     for exp_dir in sorted(outputs_dir.iterdir()):
-        if "comparison_m10" not in exp_dir.name:
+        if "_m10" not in exp_dir.name:
             continue
         rc_path = exp_dir / "run_config.json"
         summary_path = exp_dir / "summary.json"

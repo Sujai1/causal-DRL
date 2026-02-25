@@ -983,6 +983,38 @@ def plot_gradient_balancing_diagnostics(metrics: dict[str, list[dict]], output_p
     plt.close(fig)
 
 
+def plot_value_error(
+    metrics: dict[str, list[dict]], output_path: Path, smoothing: int = 20,
+) -> None:
+    """MC value approximation error |V(s0) - G0| vs timestep for custom DQN variants."""
+    all_variants, _ = _get_custom_dqn_variants(metrics)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plotted = False
+    cidx = {}
+    for name in all_variants:
+        records = [r for r in metrics[name] if "value_error" in r]
+        if not records:
+            continue
+        color = _get_variant_color(name, cidx)
+        timesteps = [r["timestep"] for r in records]
+        values = [r["value_error"] for r in records]
+        smoothed = _rolling_mean(values, smoothing)
+        ax.plot(timesteps, smoothed, label=_label(name), color=color, alpha=0.9)
+        ax.plot(timesteps, values, color=color, alpha=0.1)
+        plotted = True
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel("Value Error |V(s\u2080) \u2212 G\u2080|")
+    ax.set_title("Value Approximation Error |V(s\u2080) \u2212 G\u2080|")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_collapse_diagnostics(metrics: dict[str, list[dict]], output_path: Path) -> None:
     """Rank collapse diagnostic plots: dead features, multi-batch rank, probe MSE, feature std."""
     all_variants, _ = _get_custom_dqn_variants(metrics)
@@ -1190,6 +1222,7 @@ def generate_all_plots(
             filter_names=focus_names,
             title="Cumulative Return — DQN Variants vs Key Heuristics",
         )
+    plot_value_error(metrics, output_dir / "value_error.png", smoothing)
     plot_td_loss(metrics, output_dir / "td_loss.png")
     plot_reg_loss(metrics, output_dir / "reg_loss.png")
     plot_reg_contribution(metrics, output_dir / "reg_contribution.png")
